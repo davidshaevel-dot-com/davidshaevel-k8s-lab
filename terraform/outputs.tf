@@ -1,4 +1,5 @@
 # Read by the lab scripts (terraform output -raw <name>).
+output "subscription_id" { value = var.subscription_id }
 output "resource_group_name" { value = azurerm_resource_group.lab.name }
 output "cluster_name" { value = azurerm_kubernetes_cluster.lab.name }
 output "kubernetes_version" { value = azurerm_kubernetes_cluster.lab.kubernetes_version }

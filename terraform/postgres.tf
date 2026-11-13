@@ -2,6 +2,10 @@ resource "random_password" "postgres_admin" {
   length           = 32
   special          = true
   override_special = "-_"
+  # Azure requires three of four character classes; guarantee them.
+  min_lower   = 4
+  min_upper   = 4
+  min_numeric = 4
 }
 
 resource "azurerm_postgresql_flexible_server" "lab" {

@@ -53,6 +53,12 @@ resource "azurerm_kubernetes_cluster" "lab" {
 
   tags = var.tags
 
+  # Scenario 1 upgrades the cluster by hand; a later `make up` (for example to
+  # update the authorized IP) must not try to downgrade it.
+  lifecycle {
+    ignore_changes = [kubernetes_version, default_node_pool[0].orchestrator_version]
+  }
+
   depends_on = [azurerm_subnet_network_security_group_association.nodes]
 }
 
@@ -70,6 +76,10 @@ resource "azurerm_kubernetes_cluster_node_pool" "user" {
     max_surge = "1"
   }
   tags = var.tags
+
+  lifecycle {
+    ignore_changes = [orchestrator_version]
+  }
 }
 
 # The cluster identity manages networking in the bring-your-own subnet.

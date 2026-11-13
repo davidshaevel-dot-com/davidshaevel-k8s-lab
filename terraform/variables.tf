@@ -4,11 +4,13 @@ variable "subscription_id" {
 }
 
 variable "api_server_authorized_ip_ranges" {
-  description = "CIDRs allowed to reach the AKS API server: your own public IP as a /32 (curl -s https://ifconfig.me)."
+  description = "IPv4 CIDRs allowed to reach the AKS API server: your own public IPv4 address as a /32 (curl -4 -s https://ifconfig.me). AKS accepts IPv4 only."
   type        = list(string)
   validation {
-    condition     = length(var.api_server_authorized_ip_ranges) > 0 && alltrue([for c in var.api_server_authorized_ip_ranges : can(cidrhost(c, 0))])
-    error_message = "Give at least one CIDR, for example [\"203.0.113.7/32\"]."
+    condition = length(var.api_server_authorized_ip_ranges) > 0 && alltrue([
+      for c in var.api_server_authorized_ip_ranges : can(cidrhost(c, 0)) && can(regex("^[0-9]{1,3}(\\.[0-9]{1,3}){3}/[0-9]{1,2}$", c))
+    ])
+    error_message = "Give at least one IPv4 CIDR, for example [\"203.0.113.7/32\"]. Get yours with: curl -4 -s https://ifconfig.me"
   }
 }
 
@@ -31,7 +33,7 @@ variable "postgres_location" {
 }
 
 variable "kubernetes_version" {
-  description = "Pinned one minor version behind the newest AKS offers in East US, so scenario 1 has an upgrade to do. Read on 2026-11-12: newest 1.37.1, so 1.36.5 (newest 1.36 patch). Check: az aks get-versions --location eastus -o table"
+  description = "Version at creation: one minor behind the newest AKS offers in East US, so scenario 1 has an upgrade to do. Read on 2026-11-12: newest 1.37.1, so 1.36.5 (newest 1.36 patch). Check: az aks get-versions --location eastus -o table. Changes after creation are ignored (upgrades are done by hand in scenario 1)."
   type        = string
   default     = "1.36.5"
 }
