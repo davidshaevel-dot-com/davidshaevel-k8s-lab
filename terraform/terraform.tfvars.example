@@ -1,0 +1,11 @@
+# Copy to terraform.tfvars (gitignored) and fill in. Never commit the copy.
+
+# az account show --query id -o tsv
+subscription_id = "00000000-0000-0000-0000-000000000000"
+
+# Your public IP as a /32: curl -s https://ifconfig.me
+api_server_authorized_ip_ranges = ["203.0.113.7/32"]
+
+# Everything else has a working default in variables.tf; override here if needed.
+# kubernetes_version = "1.36.5"
+# postgres_location  = "centralus"
