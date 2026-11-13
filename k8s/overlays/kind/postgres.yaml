@@ -18,6 +18,13 @@ spec:
       labels:
         app.kubernetes.io/name: postgres
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 70 # the postgres user in the alpine image
+        runAsGroup: 70
+        fsGroup: 70
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: postgres
           image: postgres:17-alpine
@@ -27,6 +34,8 @@ spec:
           env:
             - name: POSTGRES_DB
               value: labapp
+            - name: PGDATA # a subdirectory the postgres user owns (it cannot chmod the mount root)
+              value: /var/lib/postgresql/data/pgdata
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
@@ -47,11 +56,19 @@ spec:
             exec:
               command: ["sh", "-c", "pg_isready -h 127.0.0.1 -U \"$POSTGRES_USER\" -d labapp"]
             periodSeconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
+            - name: run
+              mountPath: /var/run/postgresql
       volumes:
         - name: data
+          emptyDir: {}
+        - name: run
           emptyDir: {}
 ---
 apiVersion: v1

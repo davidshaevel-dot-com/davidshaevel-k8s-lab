@@ -2,7 +2,9 @@
 fault_supports() { return 0; }
 fault_describe() { echo "Wrong port or secret: either DB_PORT in ConfigMap web-config became 5433, or DB_PASSWORD in Secret web-db no longer matches the database (see variant)."; }
 fault_plant() {
-  if [ $((RANDOM % 2)) -eq 0 ]; then
+  local pick=$((RANDOM % 2))
+  case "${LAB_FAULT_VARIANT:-}" in port) pick=0 ;; secret) pick=1 ;; esac # testing hook
+  if [ "$pick" -eq 0 ]; then
     state_set variant "port: DB_PORT=5433 in ConfigMap web-config"
     set_config DB_PORT 5433
   else

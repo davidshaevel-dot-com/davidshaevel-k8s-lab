@@ -15,7 +15,7 @@ build_image() {
       need docker; need kind
       info "Building $APP_IMAGE_NAME:$APP_IMAGE_TAG and loading it into kind"
       docker build -q -t "$APP_IMAGE_NAME:$APP_IMAGE_TAG" "$LAB_ROOT/app" >/dev/null
-      kind load docker-image --name "$KIND_CLUSTER_NAME" "$APP_IMAGE_NAME:$APP_IMAGE_TAG" >/dev/null
+      kind load docker-image --name "$KIND_CLUSTER_NAME" "$APP_IMAGE_NAME:$APP_IMAGE_TAG" >/dev/null 2>&1
       ;;
     aks)
       need az; need terraform

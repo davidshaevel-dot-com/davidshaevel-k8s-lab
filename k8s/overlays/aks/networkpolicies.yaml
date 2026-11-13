@@ -11,7 +11,7 @@ spec:
   egress:
     - to:
         - ipBlock:
-            cidr: 10.40.8.0/24
+            cidr: 10.100.8.0/24
       ports:
         - protocol: TCP
           port: 5432

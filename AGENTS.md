@@ -43,14 +43,16 @@ local `kind` cluster for the troubleshooting scenarios) and writes the run logs.
                  Entra ID sign-in (kubelogin), local admin disabled
                                    │
  ┌─ resource group: <prefix>-rg (East US) ─────────────────────────────────────┐
- │  VNet 10.40.0.0/16                                                          │
- │   ├─ snet-aks-nodes 10.40.0.0/22  (NSG) ── AKS: system pool + user pool     │
+ │  VNet 10.100.0.0/16                                                         │
+ │   ├─ snet-aks-nodes 10.100.0.0/22 (NSG) ── AKS: system pool + user pool     │
  │   │                                         Azure CNI Overlay, Cilium       │
- │   │                                         pods 192.168.0.0/16 (overlay)   │
- │   └─ snet-private-endpoints 10.40.8.0/24 (NSG) ── private endpoint ──┐      │
+ │   │                                         pods 10.120.0.0/16 (overlay)    │
+ │   │                                         services 10.130.0.0/16          │
+ │   └─ snet-private-endpoints 10.100.8.0/24 (NSG) ── private endpoint ─┐      │
  │                                                                       ▼      │
  │  Private DNS zone privatelink.postgres.database.azure.com   PostgreSQL       │
  │  ACR (Basic) ── AcrPull ── kubelet identity                 Flexible Server  │
+ │                                                             (centralus)      │
  └─────────────────────────────────────────────────────────────────────────────┘
 
  Namespace `lab`: Deployment `web` (labapp) → Service `postgres` → database

@@ -41,7 +41,14 @@ lab_context() {
 k() { kubectl --context "$(lab_context)" -n "$LAB_NS" "$@"; }
 kc() { kubectl --context "$(lab_context)" "$@"; } # cluster-scoped, no namespace
 
-tf_out() { terraform -chdir="$TF_DIR" output -raw "$1"; }
+# tf runs terraform as the `az login` user. ARM_* service-principal variables in
+# the shell are ignored on purpose: the cluster-admin role assignment goes to
+# whoever runs apply, and that must be the person using the lab.
+tf() {
+  env -u ARM_CLIENT_ID -u ARM_CLIENT_SECRET -u ARM_CLIENT_CERTIFICATE_PATH \
+    -u ARM_USE_MSI -u ARM_USE_OIDC -u ARM_OIDC_TOKEN terraform -chdir="$TF_DIR" "$@"
+}
+tf_out() { tf output -raw "$1"; }
 
 # --- planted-fault state -------------------------------------------------------
 # One file, base64-encoded so a glance (or a stray `cat`) does not spoil the run.

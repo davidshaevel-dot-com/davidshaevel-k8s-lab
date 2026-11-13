@@ -26,4 +26,4 @@ ports:
     port: 5432
     protocol: TCP
 endpoints:
-  - addresses: ["10.40.8.4"]
+  - addresses: ["10.100.8.4"]

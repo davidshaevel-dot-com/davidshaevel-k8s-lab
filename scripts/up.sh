@@ -4,8 +4,8 @@
 need az; need terraform; need kubectl; need kubelogin
 [ -f "$TF_DIR/terraform.tfvars" ] || die "copy terraform/terraform.tfvars.example to terraform/terraform.tfvars and fill it in first"
 az account show >/dev/null 2>&1 || die "run 'az login' first"
-terraform -chdir="$TF_DIR" init -input=false
-terraform -chdir="$TF_DIR" apply -input=false
+tf init -input=false
+tf apply -input=false
 info "Fetching credentials (Entra ID; the cluster's local admin account is disabled)"
 az aks get-credentials --resource-group "$(tf_out resource_group_name)" --name "$(tf_out cluster_name)" \
   --context "$AKS_CONTEXT" --overwrite-existing
