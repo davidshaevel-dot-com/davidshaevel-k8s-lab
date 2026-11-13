@@ -1,0 +1,51 @@
+# Project Rules
+
+## Session Continuity
+
+Read SESSION_LOG.md at the start of every session for context.
+Update SESSION_LOG.md at the end of every session.
+
+## Development Conventions
+
+### Git Workflow
+
+- Branch naming: `claude/<issue-id>-<description>` or `david/<issue-id>-<description>`
+- Conventional Commits with `Co-Authored-By` and `related-issues: TT-XXX`
+- Types: feat, fix, docs, chore, refactor, test
+- Scope: descriptive word or phrase (not issue numbers)
+
+### Pull Requests
+
+- Never merge without code review
+- Squash and merge strategy
+- Reply to gemini-code-assist with `@gemini-code-assist` prefix
+- Post summary table after addressing feedback
+
+### Code Review
+
+- CRITICAL/HIGH: must fix
+- MEDIUM: evaluate
+- LOW: fix if trivial
+- No performative agreement — state the technical fix directly
+
+### Worktrees
+
+- Bare repo + worktree structure (`.bare/` + `main/`)
+- Flat worktree directory structure (not nested)
+- Copy gitignored files before removing worktrees
+
+### Linear
+
+- Team: Team Tacocat
+- Update issues as work progresses
+- Link related issues
+
+### Environment Variables
+
+- `.envrc` with direnv, `.envrc.example` committed
+- Never commit sensitive data
+
+## Project Context
+
+- Public Kubernetes practice lab; see AGENTS.md for hard rules (no Azure applies by agents, nothing private in the repo, walkthroughs are spoilers).
+- Quick checks: `make test`, `make check`.

@@ -1,0 +1,31 @@
+# Agent context files (sensitive/local)
+AGENTS.local.md
+# legacy
+CLAUDE.local.md
+SESSION_LOG.md
+
+# Local environment
+.envrc
+.lab/
+*.kubeconfig
+kubeconfig*
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+terraform.tfvars
+crash.log
+crash.*.log
+.terraform.tfstate.lock.info
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# OS
+.DS_Store

@@ -1,0 +1,7 @@
+# Copy to .envrc (gitignored). Everything here is optional; the defaults work.
+
+# Force the lab environment instead of detecting it from the current kube context.
+# export LAB_ENV=kind   # or: aks
+
+# Name of the local kind cluster.
+# export KIND_CLUSTER_NAME=k8s-lab
