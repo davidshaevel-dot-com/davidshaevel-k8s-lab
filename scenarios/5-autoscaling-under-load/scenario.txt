@@ -1,0 +1,7 @@
+TICKET  autoscaling-under-load  priority=stretch
+-------------------------------------------------
+Put the web app under load and watch the horizontal pod autoscaler add
+pods and the cluster autoscaler add nodes to the user node pool, then
+watch both scale back down. Explain each decision they made.
+
+(AKS only. Content for this scenario comes in a later issue.)
