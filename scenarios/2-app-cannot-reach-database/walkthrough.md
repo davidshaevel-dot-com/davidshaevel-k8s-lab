@@ -97,8 +97,10 @@ kubectl -n lab get events --sort-by=.lastTimestamp | tail -20
   5433; the Service only exposes 5432. Fix `DB_PORT` in `web-config` and restart.
 - **Secret variant.** `password authentication failed for user "labapp"`. The network is
   fine: the server answered. `kubectl -n lab get secret web-db -o jsonpath='{.data.DB_PASSWORD}' | base64 -d`
-  differs from what the database expects. Restore the right password in the Secret (the
-  lab keeps it in `.lab/`, which stands in for your secret store) and restart.
+  differs from what the database expects. Restore the right password in the Secret and
+  restart. The lab keeps the right one in `.lab/kind-db-password` or `.lab/aks-db-password`,
+  its stand-in for a secret store (on `kind`, the database's own Secret `postgres-auth`
+  also has it).
 - **Production habit.** An authentication error proves the network path works; stop
   looking at the network.
 
@@ -114,8 +116,9 @@ kubectl -n lab get events --sort-by=.lastTimestamp | tail -20
   CONNECT privilege`. The Azure Flexible Server firewall applies only to public access,
   and this server has none, so on AKS the database-side rule is a privilege:
   `CONNECT` on database `labapp` was revoked from the app role.
-  **Trail.** As the admin (from a pod that can reach the private endpoint):
-  `SELECT datacl FROM pg_database WHERE datname = 'labapp';`.
-  **Fix.** `GRANT CONNECT ON DATABASE labapp TO labapp;`.
+  **Trail.** As the admin, through a web pod (the only place the private endpoint is
+  reachable): `scripts/db-admin.sh "SELECT datname, datacl FROM pg_database"`. The
+  `labapp` database's ACL has no `labapp=c` and no `=c` (PUBLIC) entry.
+  **Fix.** `scripts/db-admin.sh "GRANT CONNECT ON DATABASE labapp TO labapp"`.
 - **Production habit.** Read the server's error message literally: `pg_hba` and
   `privilege` errors are configuration on the database, not on the network.

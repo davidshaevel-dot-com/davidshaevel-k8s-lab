@@ -20,7 +20,9 @@ ResourceQuota, Pod Security) → the scheduler picks a node → the kubelet pull
 resolves env/config, starts the container → the probes pass → the Pod is Ready → the
 Deployment moves on (`maxSurge: 1`, `maxUnavailable: 0`, so the old pods keep serving the
 whole time). `progressDeadlineSeconds: 120` turns "stuck" into a condition you can see:
-`ProgressDeadlineExceeded`.
+`ProgressDeadlineExceeded`. `revisionHistoryLimit: 0` deletes old ReplicaSets once a
+rollout completes, so each draw starts clean; while a rollout is stuck, the previous
+ReplicaSet still has its pods, so `rollout history` and `rollout undo` work.
 
 Every fault below breaks one link. Find the link:
 

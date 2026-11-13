@@ -8,4 +8,7 @@ Your job: find out why the app cannot reach its database, fix it the way
 you would in production, and write down the cause before you run
 `make reveal`.
 
-Try first:  kubectl -n lab exec deploy/web -- python -c "import urllib.request as u; print(u.urlopen(u.Request('http://127.0.0.1:8080/api/visits', method='POST')).read())"
+Try first (prints the 503 body the app returns):
+  kubectl -n lab exec deploy/web -- python -c "import urllib.request as u
+try: print(u.urlopen(u.Request('http://127.0.0.1:8080/api/visits', method='POST')).read().decode())
+except Exception as e: print(e, e.read().decode() if hasattr(e, 'read') else '')"

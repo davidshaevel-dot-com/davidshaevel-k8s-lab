@@ -17,6 +17,7 @@ Install these first. Versions are the ones the lab was tested with; newer should
 | Tool | Tested version | Needed for |
 |---|---|---|
 | GNU make | 3.81 | everything |
+| curl, openssl | macOS defaults | finding your IP; generating lab passwords |
 | Python | 3.12 | `make test`, and the scripts use `python3` for small JSON chores |
 | kubectl | 1.37.0 | everything |
 | Docker Desktop (running) | 29.9.2 | the local `kind` path |
@@ -25,8 +26,12 @@ Install these first. Versions are the ones the lab was tested with; newer should
 | Terraform | 1.16.2 | the AKS path |
 | kubelogin | untested: not installed on the build machine | the AKS path (Entra ID sign-in) |
 
-On macOS: `brew install kubectl kind azure-cli terraform Azure/kubelogin/kubelogin`
+On macOS: `brew install kubectl kind azure-cli hashicorp/tap/terraform Azure/kubelogin/kubelogin`
 (or `az aks install-cli` for kubectl + kubelogin), and Docker Desktop from docker.com.
+
+The AKS path also needs an Azure role that can create role assignments on the
+subscription (Owner, or Contributor plus User Access Administrator): Terraform grants
+the cluster identities and you their roles.
 
 ## Quick start
 
@@ -63,15 +68,16 @@ az login
 cp terraform/terraform.tfvars.example terraform/terraform.tfvars
 #   edit terraform/terraform.tfvars:
 #     subscription_id                 = output of: az account show --query id -o tsv
-#     api_server_authorized_ip_ranges = ["<output of: curl -s https://ifconfig.me>/32"]
-make up                   # terraform apply (about 10-15 minutes), then fetches credentials
+#     api_server_authorized_ip_ranges = ["<output of: curl -4 -s https://ifconfig.me>/32"]
+#     (-4 matters: AKS accepts IPv4 ranges only)
+make up                   # terraform apply: type "yes" at the prompt (about 10-15 minutes)
 make deploy               # builds the image in Azure Container Registry, deploys, creates the DB role
 make status               # should end with HEALTHY
 make plant SCENARIO=2     # work it, write the cause down, then:
 make reveal
 make heal
 make status
-make down                 # terraform destroy, at the end of the day
+make down                 # terraform destroy (type "yes"), at the end of the day
 ```
 
 `make up` runs Terraform as your `az login` user. If your shell exports `ARM_CLIENT_ID` /
@@ -82,14 +88,32 @@ cluster-admin role assignment goes to whoever runs `apply`, and that must be you
 
 1. Run `make plant SCENARIO=<n>`. It prints the alert, nothing else. Start a timer.
 2. Diagnose from the cluster: `kubectl get`, `describe`, `logs`, `events`, `exec`, the
-   Azure CLI. Off limits during the attempt: the `faults/` directory, the walkthroughs,
-   the `.lab/` directory, and diffing the live objects against this repo's manifests
-   (`kubectl diff -k ...`). Those are answer keys, not diagnosis.
+   Azure CLI. Off limits during the attempt, because they are answer keys, not diagnosis:
+   - the `faults/` directory and the walkthroughs;
+   - `.lab/state`, `.lab/last-plant.log` and `.lab/last-heal.log`;
+   - diffing the live objects against this repo's manifests (`kubectl diff -k ...`);
+   - `kubectl get --show-managed-fields`, which shows which tool changed which field.
+
+   The passwords in `.lab/*-password` are fair game: they stand in for a secret store.
 3. Fix it the way you would in production. (`make heal` is the reset button, not the fix.)
 4. Write the cause down, stop the timer, then run `make reveal`.
 5. Copy `runs/TEMPLATE.md` to `runs/YYYY-MM-DD-s<n>-<short-name>.md` and fill it in.
 6. Read the walkthrough (below) and compare.
 7. `make heal`, `make status`, and go again: each plant is a fresh draw.
+
+### When something is off
+
+- **Full reset.** `make heal` undoes every fault the lab knows about. If your own fix
+  added something the manifests do not remove (a ConfigMap key, an image tag), or the
+  `.lab/` directory was deleted, reset the app fully:
+  `kubectl delete namespace lab && make deploy`.
+- **Plant or heal failed.** Their output goes to `.lab/last-plant.log` and
+  `.lab/last-heal.log` so it cannot spoil a run; read them after `make reveal` (or when
+  you give up).
+- **Database as admin.** `scripts/db-admin.sh "<SQL>"` runs one statement as the
+  database admin and prints the result: on `kind`, with `psql` in the PostgreSQL pod; on
+  AKS, from inside a web pod, the only place the private endpoint is reachable, with the
+  admin password from Terraform output.
 
 ## Scenarios
 
@@ -126,9 +150,11 @@ tests/          shell tests for the fault machinery, and the kind end-to-end run
   Cilium as the network data plane and NetworkPolicy engine.
 - **Nodes.** A system pool (1 x Standard_D2s_v5, critical add-ons only) and a user pool
   (Standard_D2s_v5, autoscaling 1 to 3). Sized against the subscription's East US quota.
-- **Version.** Kubernetes pinned one minor version behind the newest AKS offers (1.36.5
+- **Version.** Kubernetes created one minor version behind the newest AKS offers (1.36.5
   while 1.37.1 is newest) so scenario 1 has an upgrade to do. The version is a variable
-  in `terraform/variables.tf`.
+  in `terraform/variables.tf`; after creation Terraform ignores it, so a later `make up`
+  never undoes the upgrade you did by hand. A new cluster after `make down` starts at the
+  variable's value again.
 - **Identity.** OIDC issuer and workload identity are enabled.
 - **Database.** Azure Database for PostgreSQL Flexible Server, reached only through a
   private endpoint in the lab VNet with a `privatelink.postgres.database.azure.com`
@@ -136,7 +162,11 @@ tests/          shell tests for the fault machinery, and the kind end-to-end run
   new Flexible Servers are restricted in East US for this subscription. The app reaches
   it as the in-cluster Service `postgres`, the same name it uses on `kind`.
 - **Images.** Azure Container Registry (Basic). `make deploy` builds the image there
-  (`az acr build`), so the AKS path needs no local Docker.
+  (`az acr build`), which needs no local Docker. Some subscription offers do not allow
+  ACR Tasks; if `az acr build` fails, `make deploy` builds locally with Docker
+  (`linux/amd64`, pushed with `az acr login`) instead, and tells you to start Docker
+  Desktop if it is not running. `LAB_IMAGE_BUILD=local make deploy` skips straight to the
+  local build.
 - **State.** Terraform state is local and gitignored. It holds the database admin
   password; never commit it.
 
