@@ -12,15 +12,18 @@ class PostgresStore:
         self._conninfo = config.conninfo()
 
     def _connect(self):
-        return psycopg.connect(self._conninfo, autocommit=True)
+        conn = psycopg.connect(self._conninfo, autocommit=True)
+        # Create the table only when missing: on AKS the app role may lack CREATE on
+        # the schema, and the deploy step creates the table ahead of time.
+        if conn.execute("SELECT to_regclass('visits')").fetchone()[0] is None:
+            conn.execute(SCHEMA)
+        return conn
 
     def visit_count(self) -> int:
         with self._connect() as conn:
-            conn.execute(SCHEMA)
             return conn.execute("SELECT count(*) FROM visits").fetchone()[0]
 
     def record_visit(self) -> int:
         with self._connect() as conn:
-            conn.execute(SCHEMA)
             conn.execute("INSERT INTO visits DEFAULT VALUES")
             return conn.execute("SELECT count(*) FROM visits").fetchone()[0]

@@ -1,0 +1,17 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: db-egress
+  namespace: lab
+spec:
+  podSelector:
+    matchLabels:
+      lab.davidshaevel.com/db-client: "true"
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 10.40.8.0/24
+      ports:
+        - protocol: TCP
+          port: 5432

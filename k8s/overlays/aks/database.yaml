@@ -1,0 +1,29 @@
+# Azure Database for PostgreSQL is reached through a private endpoint in the
+# VNet. A selectorless Service plus an EndpointSlice gives it an in-cluster
+# name (`postgres`), the same name the kind overlay uses. `make deploy`
+# replaces the address with the private endpoint IP from Terraform output.
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: lab
+spec:
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: postgres-1
+  namespace: lab
+  labels:
+    kubernetes.io/service-name: postgres
+addressType: IPv4
+ports:
+  - name: postgres
+    port: 5432
+    protocol: TCP
+endpoints:
+  - addresses: ["10.40.8.4"]
