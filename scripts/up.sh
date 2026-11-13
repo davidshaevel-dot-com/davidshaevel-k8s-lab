@@ -16,8 +16,9 @@ mkdir -p "$LAB_STATE_DIR" && echo aks > "$LAB_STATE_DIR/env"
 kubectl config use-context "$AKS_CONTEXT" >/dev/null
 # The cluster-admin role assignment can take a few minutes to propagate.
 for attempt in $(seq 1 30); do
-  kubectl get nodes 2>/dev/null && exit 0
-  [ "$attempt" -eq 1 ] && info "Waiting for the Azure RBAC role assignment to take effect (up to 5 minutes)"
+  out=$(kubectl get nodes 2>&1) && { echo "$out"; exit 0; }
+  [ "$attempt" -eq 1 ] && info "kubectl get nodes failed; retrying for up to 5 minutes (RBAC propagation). Error: $out"
   sleep 10
 done
-die "kubectl still cannot list nodes; check 'az role assignment list --scope <cluster id>' and try 'kubectl get nodes' again"
+die "kubectl still cannot list nodes. Last error: $out
+Check: your IP is in api_server_authorized_ip_ranges (curl -4 -s https://ifconfig.me), kubelogin is installed, and the role assignments exist."

@@ -27,10 +27,12 @@ state_set fault "$(basename "$chosen" .sh)"
 state_set planted_at "$(date +%s)"
 
 # Everything the fault does goes to a log, not the terminal: its output would
-# give it away. The log is under .lab/, which is off limits during an attempt.
+# give it away. The log is base64-encoded like the state file (a stray cat or
+# grep -r must not spoil a run), owner-only, and never traced (no secrets).
 log="$LAB_STATE_DIR/last-plant.log"
-if ! (. "$chosen"; set -x; fault_plant) > "$log" 2>&1; then
-  echo "Planting failed (details, which name the fault: $log)." >&2
+rm -f "$log" # a rewrite would keep an older, wider mode
+if ! (umask 077; (. "$chosen"; fault_plant) 2>&1 | base64 > "$log"); then
+  echo "Planting failed (details, which name the fault: base64 -d < $log)." >&2
   echo "Run 'make heal' to restore the healthy state, then try again." >&2
   exit 1
 fi

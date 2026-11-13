@@ -126,5 +126,8 @@ if [ "$env_name" = kind ]; then
   k rollout status statefulset/postgres --timeout=180s >/dev/null || die "PostgreSQL did not become ready"
 fi
 k rollout status deployment/web --timeout=180s >/dev/null || die "the web Deployment did not become ready"
-if [ "$env_name" = aks ]; then init_database >/dev/null; fi
+if [ "$env_name" = aks ]; then
+  # One retry: just after the NSG fault is healed, the path can take a moment.
+  init_database >/dev/null || { info "database re-sync failed; retrying in 30s"; sleep 30; init_database >/dev/null; }
+fi
 info "Deployed. Check with: make status"

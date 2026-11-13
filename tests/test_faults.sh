@@ -12,7 +12,7 @@ for tool in kubectl az docker kind terraform; do
   cat > "$WORK/bin/$tool" <<STUB
 #!/usr/bin/env bash
 echo "$tool \$*" >> "$WORK/calls.log"
-echo "deployment.apps/web patched (stub $tool \$*)"
+echo "deployment.apps/web patched (stub $tool)"
 exit 0
 STUB
   chmod +x "$WORK/bin/$tool"
@@ -22,7 +22,7 @@ done
 cat > "$WORK/bin/kubectl" <<'STUB'
 #!/usr/bin/env bash
 echo "kubectl $*" >> "$(dirname "$0")/../calls.log"
-echo "deployment.apps/web patched (stub kubectl $*)"
+echo "deployment.apps/web patched (stub kubectl)"
 case "$*" in *Ready*) echo "web-0 True" ;; esac
 case " $* " in *" -i "* | *" -f - "*) cat >/dev/null ;; esac
 exit 0
@@ -59,6 +59,8 @@ for ENVIRONMENT in kind aks; do
       id=$(basename "$f" .sh)
       bash -c ". '$f'; fault_supports $ENVIRONMENT" || continue
       rm -rf "$WORK/state" "$WORK/calls.log"
+      mkdir -p "$WORK/state" && touch "$WORK/state/last-plant.log" "$WORK/state/last-heal.log" &&
+        chmod 644 "$WORK/state/last-plant.log" "$WORK/state/last-heal.log" # left by an older version
       desc=$(bash -c ". '$f'; fault_describe")
       out=$(run env LAB_FAULT="$id" "$ROOT/scripts/plant.sh" "$scenario")
       status=$?
@@ -81,6 +83,18 @@ for ENVIRONMENT in kind aks; do
       out=$(run "$ROOT/scripts/heal.sh")
       assert_eq 0 "$?" "$id: heal exits 0"
       assert_not_contains "$out" "stub" "$id: heal output omits tool output"
+      for log in last-plant.log last-heal.log; do
+        raw=$(cat "$WORK/state/$log" 2>/dev/null)
+        decoded=$(printf '%s' "$raw" | base64 -d 2>/dev/null || printf '%s' "$raw" | base64 -D 2>/dev/null)
+        assert_not_contains "$raw" "$id" "$id: $log does not spell out the fault id"
+        assert_eq "-rw-------" "$(ls -l "$WORK/state/$log" | cut -c1-10)" "$id: $log is readable by its owner only"
+        for pwfile in "$WORK"/state/*-password; do
+          [ -f "$pwfile" ] || continue
+          pw=$(cat "$pwfile")
+          assert_not_contains "$raw$decoded" "$pw" "$id: $log holds no password ($(basename "$pwfile"))"
+          assert_not_contains "$raw$decoded" "$(printf '%s' "$pw" | base64)" "$id: $log holds no base64 password ($(basename "$pwfile"))"
+        done
+      done
       out=$(run "$ROOT/scripts/reveal.sh")
       assert_contains "$out" "No fault is planted" "$id: heal clears the planted state"
     done

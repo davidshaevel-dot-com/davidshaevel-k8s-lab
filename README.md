@@ -108,8 +108,8 @@ cluster-admin role assignment goes to whoever runs `apply`, and that must be you
   `.lab/` directory was deleted, reset the app fully:
   `kubectl delete namespace lab && make deploy`.
 - **Plant or heal failed.** Their output goes to `.lab/last-plant.log` and
-  `.lab/last-heal.log` so it cannot spoil a run; read them after `make reveal` (or when
-  you give up).
+  `.lab/last-heal.log`, base64-encoded so it cannot spoil a run; read them after
+  `make reveal` (or when you give up) with `base64 -d < .lab/last-plant.log`.
 - **Database as admin.** `scripts/db-admin.sh "<SQL>"` runs one statement as the
   database admin and prints the result: on `kind`, with `psql` in the PostgreSQL pod; on
   AKS, from inside a web pod, the only place the private endpoint is reachable, with the

@@ -22,3 +22,10 @@ fault_heal() {
   after=$(k get configmap web-config -o jsonpath='{.data.DB_PORT}'; k get secret web-db -o jsonpath='{.data.DB_PASSWORD}')
   [ "$before" = "$after" ] || restart_web
 }
+# On kind, also re-set the role's password: a fix made in the database (ALTER
+# ROLE) would otherwise survive heal. The password travels on stdin.
+fault_heal_after_apply() {
+  [ "$(lab_env)" = kind ] || return 0
+  printf "ALTER ROLE labapp PASSWORD '%s';\n" "$(lab_password kind-db)" |
+    k exec -i statefulset/postgres -c postgres -- psql -U labapp -d labapp -q
+}
