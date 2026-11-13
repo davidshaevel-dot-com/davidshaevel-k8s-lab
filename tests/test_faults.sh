@@ -78,8 +78,9 @@ for ENVIRONMENT in kind aks; do
       assert_contains "$out" "$id" "$id: reveal names the fault"
       assert_contains "$out" "$desc" "$id: reveal describes the fault"
 
-      run "$ROOT/scripts/heal.sh" >/dev/null
+      out=$(run "$ROOT/scripts/heal.sh")
       assert_eq 0 "$?" "$id: heal exits 0"
+      assert_not_contains "$out" "stub" "$id: heal output omits tool output"
       out=$(run "$ROOT/scripts/reveal.sh")
       assert_contains "$out" "No fault is planted" "$id: heal clears the planted state"
     done

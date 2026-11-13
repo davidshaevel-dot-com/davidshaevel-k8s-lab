@@ -14,11 +14,12 @@ fi
 
 # Kubernetes-side heals first, then re-apply the baseline, then anything that
 # needs a running app (database-side heals run through a web pod).
-for f in "${faults[@]}"; do (. "$f"; fault_heal) || die "heal failed for $(basename "$f" .sh)"; done
+# Fault output is silenced, as in plant: heal can run before reveal (giving up).
+for f in "${faults[@]}"; do (. "$f"; fault_heal) >/dev/null 2>&1 || die "heal failed for $(basename "$f" .sh)"; done
 "$LAB_ROOT/scripts/deploy.sh" --apply-only
 for f in "${faults[@]}"; do
   if (. "$f"; declare -F fault_heal_after_apply >/dev/null); then
-    (. "$f"; fault_heal_after_apply) || die "heal failed for $(basename "$f" .sh)"
+    (. "$f"; fault_heal_after_apply) >/dev/null 2>&1 || die "heal failed for $(basename "$f" .sh)"
   fi
 done
 state_clear
