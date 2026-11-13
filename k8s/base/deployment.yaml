@@ -7,7 +7,10 @@ metadata:
     app.kubernetes.io/name: web
 spec:
   replicas: 2
-  revisionHistoryLimit: 5
+  # 0: once a rollout completes, old ReplicaSets are deleted, so a new draw never
+  # shows the broken revisions of earlier faults. `rollout undo` still works while
+  # a rollout is stuck, because the previous ReplicaSet still has its pods.
+  revisionHistoryLimit: 0
   progressDeadlineSeconds: 120
   strategy:
     type: RollingUpdate

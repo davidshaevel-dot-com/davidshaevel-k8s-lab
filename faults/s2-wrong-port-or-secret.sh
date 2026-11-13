@@ -14,7 +14,11 @@ fault_plant() {
   restart_web
 }
 fault_heal() {
+  # Restart only if something was actually wrong: heal runs for every fault.
+  local before after
+  before=$(k get configmap web-config -o jsonpath='{.data.DB_PORT}'; k get secret web-db -o jsonpath='{.data.DB_PASSWORD}')
   set_config DB_PORT 5432
   ensure_app_secrets
-  restart_web
+  after=$(k get configmap web-config -o jsonpath='{.data.DB_PORT}'; k get secret web-db -o jsonpath='{.data.DB_PASSWORD}')
+  [ "$before" = "$after" ] || restart_web
 }

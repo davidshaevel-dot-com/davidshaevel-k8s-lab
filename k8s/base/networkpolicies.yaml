@@ -8,6 +8,9 @@ spec:
   podSelector: {}
   policyTypes: ["Ingress", "Egress"]
 ---
+# Note for scenario 1: from Kubernetes 1.37, AKS can enable LocalDNS (a node-local
+# resolver on a link-local address) on nodes with 4 or more vCPUs. If you resize
+# the pools to that and LocalDNS turns on, this rule must also allow it.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

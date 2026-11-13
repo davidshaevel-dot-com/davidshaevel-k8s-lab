@@ -26,9 +26,12 @@ state_set scenario "$scenario"
 state_set fault "$(basename "$chosen" .sh)"
 state_set planted_at "$(date +%s)"
 
-# Everything the fault does is silenced: its output would give it away.
-if ! (. "$chosen"; fault_plant) >/dev/null 2>&1; then
-  echo "Planting failed. Run 'make heal' to restore the healthy state, then try again." >&2
+# Everything the fault does goes to a log, not the terminal: its output would
+# give it away. The log is under .lab/, which is off limits during an attempt.
+log="$LAB_STATE_DIR/last-plant.log"
+if ! (. "$chosen"; set -x; fault_plant) > "$log" 2>&1; then
+  echo "Planting failed (details, which name the fault: $log)." >&2
+  echo "Run 'make heal' to restore the healthy state, then try again." >&2
   exit 1
 fi
 

@@ -68,7 +68,7 @@ for ENVIRONMENT in kind aks; do
       assert_not_contains "$out" "$desc" "$id: plant output omits the description"
       assert_not_contains "$out" "stub" "$id: plant output omits tool output"
       assert_contains "$out" "Start your timer" "$id: plant says a fault is planted"
-      state=$(cat "$WORK"/state/* 2>/dev/null)
+      state=$(cat "$WORK/state/state" 2>/dev/null)
       assert_not_contains "$state" "$id" "$id: state on disk does not spell out the fault id"
 
       out=$(run "$ROOT/scripts/plant.sh" "$scenario")
@@ -86,6 +86,31 @@ for ENVIRONMENT in kind aks; do
     done
   done
 done
+
+echo "review fixes"
+ENVIRONMENT=aks
+rm -rf "$WORK/state" "$WORK/calls.log"
+run env LAB_FAULT=s3-quota "$ROOT/scripts/plant.sh" 3 >/dev/null
+[ -s "$WORK/state/last-plant.log" ] && pass "plant keeps its output in .lab/last-plant.log" || fail "plant keeps its output in .lab/last-plant.log"
+run "$ROOT/scripts/heal.sh" >/dev/null
+[ -s "$WORK/state/last-heal.log" ] && pass "heal keeps its output in .lab/last-heal.log" || fail "heal keeps its output in .lab/last-heal.log"
+calls=$(cat "$WORK/calls.log")
+assert_contains "$calls" "az network nsg rule delete" "heal undoes every fault, not only the recorded one"
+assert_contains "$calls" "--server-side" "apply is server-side"
+client_side=$(grep -E '^kubectl .* apply ' "$WORK/calls.log" | grep -v -- '--server-side' || true)
+assert_eq "" "$client_side" "no client-side apply (it writes the last-applied annotation)"
+
+# A failing `terraform output` must stop deploy before anything is applied.
+cp "$WORK/bin/terraform" "$WORK/terraform.ok"
+printf '#!/usr/bin/env bash\necho "terraform $*" >> "%s/calls.log"\ncase "$*" in *output*) echo "No outputs found" >&2; exit 1 ;; esac\n' "$WORK" > "$WORK/bin/terraform"
+rm -f "$WORK/calls.log"
+run "$ROOT/scripts/deploy.sh" --apply-only >/dev/null
+[ $? -ne 0 ] && pass "deploy fails when terraform output fails" || fail "deploy fails when terraform output fails"
+grep -q 'apply.*-k' "$WORK/calls.log" && fail "deploy applies nothing when terraform output fails" || pass "deploy applies nothing when terraform output fails"
+cp "$WORK/terraform.ok" "$WORK/bin/terraform"
+
+echo "revision history"
+assert_contains "$(cat "$ROOT/k8s/base/deployment.yaml")" "revisionHistoryLimit: 0" "old ReplicaSets (earlier faults) are not kept"
 
 echo "plant chooses at random"
 ENVIRONMENT=kind

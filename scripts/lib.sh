@@ -48,7 +48,15 @@ tf() {
   env -u ARM_CLIENT_ID -u ARM_CLIENT_SECRET -u ARM_CLIENT_CERTIFICATE_PATH \
     -u ARM_USE_MSI -u ARM_USE_OIDC -u ARM_OIDC_TOKEN terraform -chdir="$TF_DIR" "$@"
 }
-tf_out() { tf output -raw "$1"; }
+# tf_out fails loudly: callers assign it to a variable first (a failing $(...)
+# inside a heredoc would not stop the script).
+tf_out() {
+  local v
+  v=$(tf output -raw "$1") && [ -n "$v" ] || die "terraform output '$1' is empty; run 'make up' from this checkout first"
+  printf '%s' "$v"
+}
+# az_sub runs az against the subscription Terraform uses, not the CLI default.
+az_sub() { az "$@" --subscription "$(tf_out subscription_id)"; }
 
 # --- planted-fault state -------------------------------------------------------
 # One file, base64-encoded so a glance (or a stray `cat`) does not spoil the run.
@@ -86,11 +94,20 @@ fault_files() {
 restart_web() { k rollout restart deployment/web; }
 set_config() { k patch configmap web-config --type merge -p "{\"data\":{\"$1\":\"$2\"}}"; }
 
-# A password generated once per environment and kept in .lab/ (gitignored).
+# A password generated once per environment and kept in .lab/ (gitignored),
+# which stands in for a secret store. If the file is gone (say, git clean -fdx),
+# kind recovers it from the database's own Secret instead of generating a new
+# one the running database would not accept. (On AKS, deploy and heal re-set
+# the role's password to this value, so a new one is harmless there.)
 lab_password() { # name
-  local f="$LAB_STATE_DIR/$1-password"
+  local f="$LAB_STATE_DIR/$1-password" existing=""
   mkdir -p "$LAB_STATE_DIR"
-  [ -s "$f" ] || (umask 077; openssl rand -hex 16 > "$f")
+  if [ ! -s "$f" ] && [ "$1" = kind-db ]; then
+    existing=$(k get secret postgres-auth -o jsonpath='{.data.password}' 2>/dev/null | base64 -d 2>/dev/null || true)
+  fi
+  if [ ! -s "$f" ]; then
+    (umask 077; if [ -n "$existing" ]; then printf '%s\n' "$existing"; else openssl rand -hex 16; fi > "$f")
+  fi
   cat "$f"
 }
 
@@ -99,7 +116,7 @@ apply_secret() {
   local name=$1; shift
   local args=() kv
   for kv in "$@"; do args+=(--from-literal="$kv"); done
-  k create secret generic "$name" "${args[@]}" --dry-run=client -o yaml | k apply -f -
+  k create secret generic "$name" "${args[@]}" --dry-run=client -o yaml | k apply --server-side --force-conflicts -f -
 }
 
 # ensure_app_secrets writes the healthy secrets for the current environment.
@@ -121,15 +138,17 @@ ensure_app_secrets() {
 ready_web_pod() {
   k get pods -l app.kubernetes.io/name=web \
     -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.status.conditions[?(@.type=="Ready")].status}{"\n"}{end}' |
-    awk '$2 == "True" { print $1; exit }'
+    awk '$2 == "True" && !found { print $1; found = 1 }'
 }
 
 # pg_exec runs a shell command in the kind PostgreSQL pod.
 pg_exec() { k exec statefulset/postgres -c postgres -- sh -c "$1"; }
 
 # db_admin runs SQL steps against Azure PostgreSQL as the admin, from inside a
-# ready web pod (the only place the private endpoint is reachable). Credentials
-# travel on stdin, never on a command line. Steps are JSON:
+# ready web pod (the only place the private endpoint is reachable). It connects
+# by the server's FQDN, which resolves through the private DNS zone to the
+# private endpoint. Credentials travel in environment variables and on stdin,
+# never on a command line. Steps are JSON:
 #   [{"db": "postgres", "sql": "CREATE ROLE {} ...", "params": ["..."], "unless": "SELECT ..."}]
 DB_ADMIN_PY='
 import json, sys, psycopg
@@ -147,10 +166,12 @@ db_admin() { # steps-json
   local pod host user password
   pod=$(ready_web_pod)
   [ -n "$pod" ] || die "no ready web pod to reach the database through"
-  host=$(tf_out postgres_private_ip)
+  host=$(tf_out postgres_fqdn)
   user=$(tf_out postgres_admin_login)
   password=$(tf_out postgres_admin_password)
-  python3 -c 'import json,sys; print(json.dumps({"host": sys.argv[1], "user": sys.argv[2], "password": sys.argv[3], "steps": json.loads(sys.argv[4])}))' \
-    "$host" "$user" "$password" "$1" |
+  DB_HOST_="$host" DB_USER_="$user" DB_PASSWORD_="$password" DB_STEPS_="$1" python3 -c '
+import json, os
+print(json.dumps({"host": os.environ["DB_HOST_"], "user": os.environ["DB_USER_"],
+                  "password": os.environ["DB_PASSWORD_"], "steps": json.loads(os.environ["DB_STEPS_"])}))' |
     k exec -i "$pod" -c web -- python -c "$DB_ADMIN_PY"
 }

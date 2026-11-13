@@ -26,6 +26,7 @@ pod_waiting() { $K get pods -l app.kubernetes.io/name=web -o jsonpath='{.items[*
 pod_unschedulable() { $K get pods -l app.kubernetes.io/name=web -o jsonpath='{.items[*].status.conditions[?(@.type=="PodScheduled")].reason}' | grep -q Unschedulable; }
 readiness_404() { $K get events --field-selector reason=Unhealthy -o jsonpath='{.items[*].message}' | grep -q 'Readiness probe failed: HTTP probe failed with statuscode: 404'; }
 quota_rejected() { $K get events --field-selector reason=FailedCreate -o jsonpath='{.items[*].message}' | grep -q 'exceeded quota: lab-quota'; }
+one_replicaset() { [ "$($K get rs -l app.kubernetes.io/name=web --no-headers | wc -l | tr -d ' ')" = 1 ]; }
 rollout_stuck() { ! $K rollout status deployment/web --timeout=15s; }
 
 symptom() { # fault-id -> succeeds once that fault's symptom is visible
@@ -62,8 +63,11 @@ for id in "${faults[@]}"; do
   if wait_for 150 symptom "$id"; then pass "$id: symptom confirmed after $((SECONDS - start))s"
   else fail "$id: symptom confirmed"; fi
   [ "$scenario" = 2 ] && echo "       app saw: $(db_detail 2>&1 | head -c 220)"
+  annotated=$($K get deploy,sts,svc,cm,secret,netpol,pdb,resourcequota,endpointslice -o yaml | grep -c 'last-applied-configuration' || true)
+  assert_eq 0 "$annotated" "$id: no object carries a last-applied annotation (it would show the healthy value)"
   assert_contains "$(make -s reveal)" "$id" "$id: reveal names it"
   make -s heal >/dev/null 2>&1; assert_eq 0 $? "$id: heal succeeded"
   if wait_for 120 make -s status; then pass "$id: healthy after heal"; else fail "$id: healthy after heal" "$(make -s status 2>&1 | tail -6)"; fi
+  if wait_for 60 one_replicaset; then pass "$id: only the healthy ReplicaSet remains"; else fail "$id: only the healthy ReplicaSet remains" "$($K get rs 2>&1)"; fi
 done
 finish
