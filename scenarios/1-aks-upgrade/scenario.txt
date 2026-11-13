@@ -1,0 +1,9 @@
+TICKET  aks-lab-upgrade  priority=planned
+-------------------------------------------------
+The AKS lab cluster runs one Kubernetes minor version behind the newest
+version AKS offers. Upgrade it to the newest minor version without taking
+the app down: check version skew and deprecated APIs, confirm the
+disruption budget and surge settings, upgrade the control plane, then the
+node pools, verify, and write the runbook and the recovery plan as you go.
+
+(AKS only. Content for this scenario comes in a later issue.)

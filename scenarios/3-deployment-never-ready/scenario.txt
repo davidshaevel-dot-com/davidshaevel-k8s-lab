@@ -1,0 +1,9 @@
+ALERT  web-rollout-stuck  severity=ticket
+-------------------------------------------------
+A new revision of the `web` Deployment in namespace `lab` started rolling
+out and has not finished. `kubectl -n lab rollout status deploy/web`
+waits and never reports success. The old pods are still serving.
+
+Your job: trace the rollout from the Deployment down to the container,
+find out why the new pods never become Ready, fix it, and write down the
+cause before you run `make reveal`.
