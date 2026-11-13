@@ -12,7 +12,7 @@ local `kind` cluster for the troubleshooting scenarios) and writes the run logs.
 - **Languages:** Python (the lab app), Bash (lab scripts, fault scripts), HCL
 
 **Project Management:**
-- **Issue Tracking:** Linear (Team Tacocat), project "Kubernetes Lab Practice"
+- **Issue Tracking:** Linear
 - **Version Control:** GitHub (public repository)
 - **Branching Strategy:** Feature branches with PR workflow
 
@@ -24,10 +24,6 @@ local `kind` cluster for the troubleshooting scenarios) and writes the run logs.
   `terraform destroy`, no `az ... create|update|delete`, no `make up|down|plant|heal`
   against AKS. `terraform fmt`, `terraform validate`, `terraform plan` and read-only `az`
   reads (`list`, `show`, `get-versions`) are fine. David applies.
-- **The repository is public.** Never name an employer, a hiring contact or a job
-  application, and never commit a subscription id, tenant id, password or kubeconfig.
-  Values like these live in the gitignored `terraform/terraform.tfvars`, `.envrc` and
-  `AGENTS.local.md`.
 - **Walkthroughs are spoilers.** The README links them only under the "Review after your
   attempt" heading. Never quote a walkthrough, a fault id or a fault description in
   README text above that heading, in `scenario.txt`, or in anything `make plant` prints.
@@ -122,7 +118,6 @@ Environment-specific values are stored in `.envrc` (gitignored). A committed
 
 ## References
 
-- **Linear Project:** Kubernetes Lab Practice (Team Tacocat)
 - **AKS docs:** https://learn.microsoft.com/azure/aks/
 
 ---
