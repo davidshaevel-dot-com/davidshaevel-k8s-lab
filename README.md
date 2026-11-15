@@ -46,6 +46,7 @@ make test                 # optional: unit tests and fault-machinery tests, no c
 make kind-up              # one control-plane node + one worker, in Docker
 make deploy               # builds the app image, loads it into kind, deploys app + PostgreSQL
 make status               # should end with HEALTHY
+                          # first time: do the warm-up now (see "Start with the warm-up"); it plants nothing
 make plant SCENARIO=3     # plants one random fault; start your timer and work it
 make reveal               # only after you have written down your diagnosis
 make heal                 # restores the healthy state
@@ -73,6 +74,7 @@ cp terraform/terraform.tfvars.example terraform/terraform.tfvars
 make up                   # terraform apply: type "yes" at the prompt (about 10-15 minutes)
 make deploy               # builds the image in Azure Container Registry, deploys, creates the DB role
 make status               # should end with HEALTHY
+                          # first time: do the warm-up now (see "Start with the warm-up"); it plants nothing
 make plant SCENARIO=2     # work it, write the cause down, then:
 make reveal
 make heal
@@ -84,7 +86,19 @@ make down                 # terraform destroy (type "yes"), at the end of the da
 `ARM_CLIENT_SECRET` for a service principal, the lab ignores them on purpose: the
 cluster-admin role assignment goes to whoever runs `apply`, and that must be you.
 
+## Start with the warm-up
+
+Once `make status` ends with `HEALTHY`, do the warm-up before any scenario:
+[trace a healthy rollout](scenarios/0-warm-up-trace-a-rollout/exercise.md). You restart
+the `web` Deployment yourself and follow the rollout from the change you submit to new
+pods behind the Service, so you know what normal looks like and which part of Kubernetes
+does each step. It plants nothing and works on both kind and AKS. Its walkthrough is
+listed under "Review after your attempt".
+
 ## Challenge first, time yourself, then review
+
+This routine is for the numbered scenarios. The warm-up skips it: it plants nothing and
+has no timer and no `make reveal`. `make plant` is only for scenarios 2 and 3.
 
 1. Run `make plant SCENARIO=<n>`. It prints the alert, nothing else. Start a timer.
 2. Diagnose from the cluster: `kubectl get`, `describe`, `logs`, `events`, `exec`, the
@@ -120,6 +134,7 @@ cluster-admin role assignment goes to whoever runs `apply`, and that must be you
 
 | # | Scenario | Root-cause family | Key skills | Runs on |
 |---|---|---|---|---|
+| 0 | [Warm-up: trace a healthy rollout](scenarios/0-warm-up-trace-a-rollout/exercise.md) | None: nothing is planted | `rollout restart`, `rollout status`, events, ReplicaSets, `describe pod`, EndpointSlices | AKS, kind |
 | 1 | AKS upgrade | Version skew, deprecated APIs, disruption budgets | `az aks get-upgrades`, surge settings, PDBs, control plane then node pools, runbook + recovery plan | AKS |
 | 2 | The app can't reach its database | Networking and access: name resolution, Services and endpoints, NetworkPolicy, network security groups, credentials and ports, database-side access rules | CoreDNS, EndpointSlices, Cilium policy, NSG rules, Secrets, PostgreSQL errors | AKS (6 faults), kind (5) |
 | 3 | The deployment never becomes ready | The rollout path: images, scheduling, probes, configuration, quotas, startup crashes | `rollout status`, ReplicaSets, events, `describe pod`, `logs --previous`, ResourceQuota | AKS, kind |
@@ -139,8 +154,9 @@ kind/           kind cluster config
 terraform/      the AKS lab cluster and everything around it
 scripts/        what the Makefile targets run
 faults/         the planted faults (spoilers)
-scenarios/      one folder per scenario: scenario.txt (the alert) and walkthrough.md
-runs/           run logs, one per attempt
+scenarios/      one folder per scenario: scenario.txt (the alert) and walkthrough.md;
+                the warm-up (0) has exercise.md in place of scenario.txt
+runs/           run logs, one per attempt, and their templates
 tests/          shell tests for the fault machinery, and the kind end-to-end run
 ```
 
@@ -209,6 +225,8 @@ with `make down`.
 
 Spoilers. Open these only after you have written down your diagnosis.
 
+- [Warm-up walkthrough](scenarios/0-warm-up-trace-a-rollout/walkthrough.md) (after the
+  warm-up; it holds no scenario spoilers)
 - [Scenario 1 walkthrough](scenarios/1-aks-upgrade/walkthrough.md)
 - [Scenario 2 walkthrough](scenarios/2-app-cannot-reach-database/walkthrough.md)
 - [Scenario 3 walkthrough](scenarios/3-deployment-never-ready/walkthrough.md)
