@@ -27,4 +27,4 @@ for f in "${faults[@]}"; do
 done
 state_clear
 info "Healed. Check with: make status"
-info "If your own fix added something the manifests do not remove (a ConfigMap key, an image tag), reset fully: kubectl delete namespace lab && make deploy"
+info "If your own fix added something the manifests do not remove, reset fully: kubectl delete namespace lab && make deploy"
