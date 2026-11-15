@@ -7,7 +7,8 @@ LAB_NS=lab
 KIND_CLUSTER_NAME=${KIND_CLUSTER_NAME:-k8s-lab}
 KIND_CONTEXT="kind-$KIND_CLUSTER_NAME"
 AKS_CONTEXT=k8s-lab-aks
-APP_IMAGE_NAME=labapp
+APP_IMAGE_NAME=labapp # the local image on kind, and the name the manifests use
+APP_IMAGE_REPO=davidshaevel-k8s-lab/labapp # the repository in the registry (AKS)
 APP_IMAGE_TAG=0.1.0
 TF_DIR="$LAB_ROOT/terraform"
 

@@ -9,7 +9,7 @@ resource "random_password" "postgres_admin" {
 }
 
 resource "azurerm_postgresql_flexible_server" "lab" {
-  name                          = "${var.prefix}-pg-${random_string.suffix.result}"
+  name                          = var.postgres_server_name
   resource_group_name           = azurerm_resource_group.lab.name
   location                      = var.postgres_location
   version                       = var.postgres_version

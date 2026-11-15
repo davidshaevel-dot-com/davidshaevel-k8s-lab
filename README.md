@@ -169,6 +169,15 @@ What the app is and how it runs: [app/README.md](app/README.md).
   (`linux/amd64`, pushed with `az acr login`) instead, and tells you to start Docker
   Desktop if it is not running. `LAB_IMAGE_BUILD=local make deploy` skips straight to the
   local build.
+- **Names.** The registry is `k8sdevlabacr` and the PostgreSQL server `k8s-lab-pg`. Both
+  names are unique across all of Azure, and these are taken by this lab, so if you run it
+  in your own subscription, set `acr_name` and `postgres_server_name` in
+  `terraform.tfvars` (the example file shows both). On AKS the image is
+  `<registry>.azurecr.io/davidshaevel-k8s-lab/labapp:0.1.0`.
+- **Changing those names on a running lab.** A new registry or server name replaces that
+  resource, so never apply the change over a running lab. Run `make down` before you pull
+  it, then `make up` and `make deploy` after. (The names changed once, from a random
+  suffix to the ones above.)
 - **State.** Terraform state is local and gitignored. It holds the database admin
   password; never commit it.
 

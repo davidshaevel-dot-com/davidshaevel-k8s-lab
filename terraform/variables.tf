@@ -20,6 +20,29 @@ variable "prefix" {
   default     = "k8s-lab"
 }
 
+# Registry and PostgreSQL server names are unique across all of Azure. The
+# defaults are this lab's own; anyone else running it sets their own in
+# terraform.tfvars.
+variable "acr_name" {
+  description = "Azure Container Registry name: 5-50 letters and digits, unique across Azure."
+  type        = string
+  default     = "k8sdevlabacr"
+  validation {
+    condition     = can(regex("^[a-zA-Z0-9]{5,50}$", var.acr_name))
+    error_message = "acr_name must be 5-50 letters and digits (no hyphens)."
+  }
+}
+
+variable "postgres_server_name" {
+  description = "PostgreSQL Flexible Server name: 3-63 lowercase letters, digits and hyphens, unique across Azure."
+  type        = string
+  default     = "k8s-lab-pg"
+  validation {
+    condition     = can(regex("^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$", var.postgres_server_name))
+    error_message = "postgres_server_name must be 3-63 lowercase letters, digits and hyphens, not starting or ending with a hyphen."
+  }
+}
+
 variable "location" {
   description = "Region for the resource group, VNet, AKS cluster, registry and private endpoint."
   type        = string
