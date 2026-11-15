@@ -87,8 +87,8 @@ YAML
 }
 
 # On AKS the app role, database and table are created by the admin, through a
-# web pod. Idempotent; heal runs it too, which re-syncs the role's password
-# with .lab/ and restores its CONNECT privilege.
+# web pod. Idempotent: every run brings the role, its password, the database,
+# the table and the grants back to the values below.
 init_database() {
   local pw
   pw=$(lab_password aks-db)
@@ -106,8 +106,8 @@ init_database() {
 }
 
 # Server-side apply writes no kubectl.kubernetes.io/last-applied-configuration
-# annotation, so `kubectl get -o yaml` on a faulted object shows only the live
-# (faulted) value. Objects first applied client-side get the annotation removed.
+# annotation, so `kubectl get -o yaml` shows the live object without an embedded
+# copy of the manifest. Objects first applied client-side get the annotation removed.
 apply_ss() { kc apply --server-side --force-conflicts "$@"; }
 strip_last_applied() {
   kc annotate namespace "$LAB_NS" kubectl.kubernetes.io/last-applied-configuration- >/dev/null 2>&1 || true
@@ -127,7 +127,7 @@ if [ "$env_name" = kind ]; then
 fi
 k rollout status deployment/web --timeout=180s >/dev/null || die "the web Deployment did not become ready"
 if [ "$env_name" = aks ]; then
-  # One retry: just after the NSG fault is healed, the path can take a moment.
+  # One retry: the private-endpoint path can take a moment to settle after a network change.
   init_database >/dev/null || { info "database re-sync failed; retrying in 30s"; sleep 30; init_database >/dev/null; }
 fi
 info "Deployed. Check with: make status"

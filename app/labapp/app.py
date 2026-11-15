@@ -20,8 +20,8 @@ def create_app(config: Config, store) -> Flask:
 
     @app.get("/readyz")
     def readyz():
-        # Deliberately independent of the database: a database outage shows up as
-        # 503s from /api/visits on a Ready pod, not as an unready rollout.
+        # Deliberately independent of the database: readiness reports only that this
+        # process serves HTTP. Database access is reported per request by /api/visits.
         return jsonify(status="ready")
 
     @app.get("/")

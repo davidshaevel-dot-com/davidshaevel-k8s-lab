@@ -29,7 +29,7 @@ resource "azurerm_subnet" "private_endpoints" {
 }
 
 # Node subnet NSG: Azure's default rules only (VNet and load balancer in,
-# everything out). Scenario 2's network security group fault adds a rule here.
+# everything out).
 resource "azurerm_network_security_group" "nodes" {
   name                = "${var.prefix}-nodes-nsg"
   location            = azurerm_resource_group.lab.location
