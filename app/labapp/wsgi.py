@@ -1,7 +1,8 @@
 """Gunicorn entry point: `gunicorn --preload labapp.wsgi:app`.
 
-With --preload a bad configuration fails in the master process and the container
-exits non-zero, so Kubernetes restarts it (CrashLoopBackOff) with the reason in the logs.
+With --preload the app, including its configuration, is loaded once in the master
+process before the workers fork, so configuration is validated before any request
+is served.
 """
 
 import logging

@@ -91,6 +91,7 @@ cluster-admin role assignment goes to whoever runs `apply`, and that must be you
    Azure CLI. Off limits during the attempt, because they are answer keys, not diagnosis:
    - the `faults/` directory and the walkthroughs;
    - `.lab/state`, `.lab/last-plant.log` and `.lab/last-heal.log`;
+   - the shell tests in `tests/` (`*.sh`), which test the lab's own machinery;
    - diffing the live objects against this repo's manifests (`kubectl diff -k ...`);
    - `kubectl get --show-managed-fields`, which shows which tool changed which field.
 
@@ -104,8 +105,8 @@ cluster-admin role assignment goes to whoever runs `apply`, and that must be you
 ### When something is off
 
 - **Full reset.** `make heal` undoes every fault the lab knows about. If your own fix
-  added something the manifests do not remove (a ConfigMap key, an image tag), or the
-  `.lab/` directory was deleted, reset the app fully:
+  added something the manifests do not remove, or the `.lab/` directory was deleted,
+  reset the app fully:
   `kubectl delete namespace lab && make deploy`.
 - **Plant or heal failed.** Their output goes to `.lab/last-plant.log` and
   `.lab/last-heal.log`, base64-encoded so it cannot spoil a run; read them after
