@@ -37,8 +37,8 @@ def test_missing_required_value_names_the_variable(missing):
 
 @pytest.mark.parametrize("name", ["DB_PORT", "DB_CONNECT_TIMEOUT"])
 def test_non_integer_value_names_the_variable_and_value(name):
-    with pytest.raises(ConfigError, match=f"{name}='5s'"):
-        load_config({**BASE, name: "5s"})
+    with pytest.raises(ConfigError, match=f"{name}='1.5'"):
+        load_config({**BASE, name: "1.5"})
 
 
 def test_conninfo_carries_every_setting():

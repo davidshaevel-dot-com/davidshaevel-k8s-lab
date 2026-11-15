@@ -72,7 +72,7 @@ def test_get_visits_reads_count(client, store):
 
 @pytest.mark.parametrize("method", ["get", "post"])
 def test_database_error_is_503_with_detail(client, store, method):
-    store.error = RuntimeError('could not translate host name "postgress" to address')
+    store.error = RuntimeError('could not translate host name "db.example.invalid" to address')
     resp = getattr(client, method)("/api/visits")
     assert resp.status_code == 503
     body = resp.get_json()
