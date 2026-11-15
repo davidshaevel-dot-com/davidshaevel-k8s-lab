@@ -11,6 +11,30 @@ For how the scenarios work, see
 [Challenge first, time yourself, then review](../README.md#challenge-first-time-yourself-then-review)
 in the root README. This page describes the app as it runs when it is healthy.
 
+## The stack, and its equivalents in other languages
+
+- **Flask** is a small Python web framework: you write a function for each URL, and
+  Flask calls it and turns its return value into an HTTP response.
+- **gunicorn** (short for "Green Unicorn") is a Python HTTP server for production. It
+  listens on a port, accepts connections, and passes each request to the app.
+- **WSGI** (Web Server Gateway Interface, defined in PEP 3333) is the standard Python
+  interface between a web server and a web app, so any WSGI server can run any WSGI app.
+
+| Role | Python (this app) | Java | JavaScript / Node.js | Go | What the role does |
+|---|---|---|---|---|---|
+| The framework | Flask | Spring MVC | Express | the standard library's `http.ServeMux`, or a router such as chi or a framework such as Gin | defines the routes and what each one returns |
+| The server | gunicorn | a servlet container: Tomcat or Jetty | the `http` module built into Node.js (`http.createServer`) | the `http.Server` in the standard library (`http.ListenAndServe`), compiled into the program | listens on the port, accepts HTTP connections, and hands each request to the app |
+| The interface between them | WSGI | the Servlet API (Jakarta Servlet) | no separate standard; the closest equivalent is the request-listener function `(req, res)` that `http.createServer` takes, which an Express app is | the `http.Handler` interface (`ServeHTTP(w, r)`) | the contract that lets one framework run on any server that speaks it |
+
+In Python and Java the server is a separate component you choose. In Spring Boot it is
+embedded in the application, Tomcat by default. In Node.js and Go the server ships with
+the runtime or the standard library, so there is nothing to pick.
+
+Here, gunicorn starts one master process. Because of `--preload`, that process loads
+the app before it forks two worker processes, which serve port 8080. Each worker uses
+gunicorn's default (sync) type and handles one request at a time. The command is in the
+Dockerfile; see [How it is built and deployed](#how-it-is-built-and-deployed).
+
 ## Endpoints
 
 The app listens on port 8080. Every response is JSON.
