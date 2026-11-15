@@ -144,6 +144,8 @@ runs/           run logs, one per attempt
 tests/          shell tests for the fault machinery, and the kind end-to-end run
 ```
 
+What the app is and how it runs: [app/README.md](app/README.md).
+
 ## The AKS lab cluster
 
 - **Network.** Its own resource group (`k8s-lab-rg`) and VNet in East US. Node subnet and
