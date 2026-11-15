@@ -1,5 +1,5 @@
 # Local lab cluster: one control-plane node and one worker. kind's default CNI
-# (kindnet) enforces NetworkPolicy, which scenario 2 relies on.
+# (kindnet) enforces NetworkPolicy, so the app's policies apply as they do on AKS.
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 nodes:

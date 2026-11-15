@@ -14,5 +14,5 @@ def test_build_app_wires_a_postgres_store_without_connecting():
 
 
 def test_build_app_rejects_bad_config_before_serving():
-    with pytest.raises(ConfigError, match="DB_CONNECT_TIMEOUT='5s'"):
-        build_app({**ENV, "DB_CONNECT_TIMEOUT": "5s"})
+    with pytest.raises(ConfigError, match="DB_CONNECT_TIMEOUT='1.5'"):
+        build_app({**ENV, "DB_CONNECT_TIMEOUT": "1.5"})

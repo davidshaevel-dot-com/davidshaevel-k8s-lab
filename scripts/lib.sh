@@ -97,8 +97,8 @@ set_config() { k patch configmap web-config --type merge -p "{\"data\":{\"$1\":\
 # A password generated once per environment and kept in .lab/ (gitignored),
 # which stands in for a secret store. If the file is gone (say, git clean -fdx),
 # kind recovers it from the database's own Secret instead of generating a new
-# one the running database would not accept. (On AKS, deploy and heal re-set
-# the role's password to this value, so a new one is harmless there.)
+# one the running database would not accept. (On AKS, every deploy re-sets the
+# role's password to this value, so a new one is harmless there.)
 lab_password() { # name
   local f="$LAB_STATE_DIR/$1-password" existing=""
   mkdir -p "$LAB_STATE_DIR"
