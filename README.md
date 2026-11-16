@@ -25,6 +25,7 @@ Install these first. Versions are the ones the lab was tested with; newer should
 | Azure CLI (`az`) | 2.90.0 | the AKS path |
 | Terraform | 1.16.2 | the AKS path |
 | kubelogin | untested: not installed on the build machine | the AKS path (Entra ID sign-in) |
+| Go | 1.26.11 (pinned in `.tool-versions`; 1.26 or newer works) | scenario 4 only; asdf is one way to install it, not required |
 
 On macOS: `brew install kubectl kind azure-cli hashicorp/tap/terraform Azure/kubelogin/kubelogin`
 (or `az aks install-cli` for kubectl + kubelogin), and Docker Desktop from docker.com.
@@ -123,10 +124,10 @@ cluster-admin role assignment goes to whoever runs `apply`, and that must be you
 | 1 | AKS upgrade | Version skew, deprecated APIs, disruption budgets | `az aks get-upgrades`, surge settings, PDBs, control plane then node pools, runbook + recovery plan | AKS |
 | 2 | The app can't reach its database | Networking and access: name resolution, Services and endpoints, NetworkPolicy, network security groups, credentials and ports, database-side access rules | CoreDNS, EndpointSlices, Cilium policy, NSG rules, Secrets, PostgreSQL errors | AKS (6 faults), kind (5) |
 | 3 | The deployment never becomes ready | The rollout path: images, scheduling, probes, configuration, quotas, startup crashes | `rollout status`, ReplicaSets, events, `describe pod`, `logs --previous`, ResourceQuota | AKS, kind |
-| 4 | Namespace guardrails controller | Drift: guardrail objects deleted by hand | Go, controller-runtime, reconcile loops, envtest | anywhere |
+| 4 | [Namespace guardrails controller](scenarios/4-namespace-guardrails-controller/exercise.md) | Drift: guardrail objects deleted by hand | Go, controller-runtime, reconcile loops, envtest | envtest (tests), kind (demo) |
 | 5 | Autoscaling under load | Capacity: pods, then nodes | HPA, cluster autoscaler, metrics, load generation | AKS |
 
-Scenarios 1, 4 and 5 hold only their alert text so far; their content arrives in later work.
+Scenarios 1 and 5 hold only their alert text so far; their content arrives in later work.
 
 ## What's in the repo
 
