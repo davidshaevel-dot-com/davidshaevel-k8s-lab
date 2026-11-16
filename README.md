@@ -134,6 +134,14 @@ has no timer and no `make reveal`. `make plant` is only for scenarios 2 and 3.
 - **Plant or heal failed.** Their output goes to `.lab/last-plant.log` and
   `.lab/last-heal.log`, base64-encoded so it cannot spoil a run; read them after
   `make reveal` (or when you give up) with `base64 -d < .lab/last-plant.log`.
+- **`make down` stops at the node pool.** Terraform fails deleting the `user` node pool
+  with `KubernetesAPICallFailed`: draining the node would evict a `web` pod against its
+  disruption budget. It ends with `polling after Delete: context deadline exceeded`.
+  `make down` removes the `lab` namespace first so this should be rare; if it happens,
+  delete the pool without the budget check, then run `make down` again:
+  `az aks nodepool delete --resource-group k8s-lab-rg --cluster-name k8s-lab-aks --name user --ignore-pdb`.
+  The names come from the default prefix `k8s-lab`; use yours if you changed it, and add
+  `--subscription <your subscription id>` if your `az` default is another subscription.
 - **Database as admin.** `scripts/db-admin.sh "<SQL>"` runs one statement as the
   database admin and prints the result: on `kind`, with `psql` in the PostgreSQL pod; on
   AKS, from inside a web pod, the only place the private endpoint is reachable, with the

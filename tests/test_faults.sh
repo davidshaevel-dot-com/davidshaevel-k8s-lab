@@ -144,6 +144,36 @@ done
 assert_contains "$(make -s -C "$ROOT" help)" "clear-events" "make help lists clear-events"
 assert_eq "" "$(grep -l clear-events "$ROOT"/scripts/{heal,plant,deploy,status}.sh)" "no other target clears events"
 
+echo "make down removes the app first"
+ENVIRONMENT=kind # on purpose: down must still name the AKS context, never the current one
+line_of() { grep -n -E "$1" "$WORK/calls.log" | head -1 | cut -d: -f1; }
+rm -rf "$WORK/state" "$WORK/calls.log"
+run "$ROOT/scripts/down.sh" >/dev/null
+assert_eq 0 "$?" "down exits 0"
+ns_line=$(line_of '^kubectl --context k8s-lab-aks delete namespace lab ')
+destroy_line=$(line_of '^terraform .* destroy -input=false')
+if [ -n "$ns_line" ] && [ -n "$destroy_line" ] && [ "$ns_line" -lt "$destroy_line" ]; then
+  pass "down deletes the lab namespace on the AKS context before terraform destroy"
+else
+  fail "down deletes the lab namespace on the AKS context before terraform destroy" "$(cat "$WORK/calls.log")"
+fi
+assert_contains "$(grep -E ' delete namespace ' "$WORK/calls.log")" "--timeout=180s --request-timeout=20s" "down bounds the namespace delete"
+
+cp "$WORK/bin/kubectl" "$WORK/kubectl.ok"
+printf '#!/usr/bin/env bash\necho "kubectl $*" >> "%s/calls.log"\necho "error: the server is not reachable" >&2\nexit 1\n' "$WORK" > "$WORK/bin/kubectl"
+rm -rf "$WORK/state" "$WORK/calls.log"
+out=$(run "$ROOT/scripts/down.sh")
+assert_eq 0 "$?" "down exits 0 when kubectl fails"
+assert_contains "$(cat "$WORK/calls.log")" "destroy -input=false" "down still reaches terraform destroy when kubectl fails"
+assert_contains "$out" "warning: could not remove the lab namespace" "down warns when it cannot remove the namespace"
+
+printf '#!/usr/bin/env bash\necho "kubectl $*" >> "%s/calls.log"\ncase "$*" in "config get-contexts"*) exit 1 ;; esac\nexit 0\n' "$WORK" > "$WORK/bin/kubectl"
+rm -rf "$WORK/state" "$WORK/calls.log"
+out=$(run "$ROOT/scripts/down.sh")
+assert_not_contains "$(cat "$WORK/calls.log")" "delete namespace" "down deletes nothing when there is no AKS context"
+assert_contains "$(cat "$WORK/calls.log")" "destroy -input=false" "down still reaches terraform destroy when there is no AKS context"
+cp "$WORK/kubectl.ok" "$WORK/bin/kubectl"
+
 echo "plant chooses at random"
 ENVIRONMENT=kind
 seen=""
