@@ -191,6 +191,9 @@ Stop the watch in terminal one with Ctrl-C.
    [`runs/TEMPLATE-warm-up.md`](../../runs/TEMPLATE-warm-up.md) to
    `runs/YYYY-MM-DD-s0-warm-up.md` and fill it in.
 3. Then read [walkthrough.md](walkthrough.md) and compare.
+4. To do it again, run `make clear-events` first for a clean slate. Step 1's `--watch-only`
+   already skips old events, but `describe` and the portal's Events page still list them
+   for about an hour.
 
 ## kind and AKS: what differs
 
