@@ -10,14 +10,18 @@ need terraform
 # context by name, never lab_context, so a kind cluster is never touched. This step
 # never fails the teardown: on any problem it warns and carries on.
 remove_app() {
-  local reason
+  local reason err
   if ! kubectl config get-contexts "$AKS_CONTEXT" >/dev/null 2>&1; then
     reason="no $AKS_CONTEXT context in your kubeconfig"
   else
-    info "Removing the $LAB_NS namespace from $AKS_CONTEXT so the node pool can drain"
-    kubectl --context "$AKS_CONTEXT" delete namespace "$LAB_NS" --ignore-not-found \
-      --wait=true --timeout=180s --request-timeout=20s >/dev/null 2>&1 && return 0
-    reason="kubectl delete namespace $LAB_NS failed or timed out"
+    info "Removing the $LAB_NS namespace from $AKS_CONTEXT so the node pool can drain (it goes even if you answer \"no\" below; make deploy brings the app back)"
+    # stderr only, for the warning; stdout ("namespace ... deleted") is dropped.
+    if err=$(kubectl --context "$AKS_CONTEXT" delete namespace "$LAB_NS" --ignore-not-found \
+      --wait=true --timeout=180s --request-timeout=20s 2>&1 >/dev/null); then
+      return 0
+    fi
+    err=$(printf '%s\n' "$err" | grep -v '^[[:space:]]*$' | tail -n 1 || true)
+    reason="kubectl delete namespace $LAB_NS failed or timed out${err:+: $err}"
   fi
   echo "warning: could not remove the $LAB_NS namespace before the destroy ($reason); continuing. If the user node pool delete then fails on a disruption budget, see \"make down stops at the node pool\" in the README." >&2
 }

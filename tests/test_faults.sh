@@ -191,16 +191,23 @@ fi
 assert_contains "$(grep -E ' delete namespace ' "$WORK/calls.log")" "--timeout=180s --request-timeout=20s" "down bounds the namespace delete"
 
 cp "$WORK/bin/kubectl" "$WORK/kubectl.ok"
-printf '#!/usr/bin/env bash\necho "kubectl $*" >> "%s/calls.log"\necho "error: the server is not reachable" >&2\nexit 1\n' "$WORK" > "$WORK/bin/kubectl"
+# The context exists, but the delete fails (refused, unreachable or timed out).
+printf '#!/usr/bin/env bash\necho "kubectl $*" >> "%s/calls.log"\ncase "$*" in "config get-contexts"*) exit 0 ;; esac\necho "noise from an earlier line" >&2\necho "error: the server is not reachable" >&2\nexit 1\n' "$WORK" > "$WORK/bin/kubectl"
 rm -rf "$WORK/state" "$WORK/calls.log"
 out=$(run "$ROOT/scripts/down.sh")
-assert_eq 0 "$?" "down exits 0 when kubectl fails"
-assert_contains "$(cat "$WORK/calls.log")" "destroy -input=false" "down still reaches terraform destroy when kubectl fails"
+assert_eq 0 "$?" "down exits 0 when the namespace delete fails"
+assert_contains "$(cat "$WORK/calls.log")" "delete namespace lab" "down tries the namespace delete when the AKS context exists"
+assert_contains "$(cat "$WORK/calls.log")" "destroy -input=false" "down still reaches terraform destroy when the namespace delete fails"
 assert_contains "$out" "warning: could not remove the lab namespace" "down warns when it cannot remove the namespace"
+assert_contains "$out" "failed or timed out" "the warning says the delete failed or timed out"
+assert_contains "$(grep '^warning:' <<<"$out")" "error: the server is not reachable" "the warning carries kubectl's last error line"
+assert_not_contains "$out" "noise from an earlier line" "the warning carries only kubectl's last line"
 
 printf '#!/usr/bin/env bash\necho "kubectl $*" >> "%s/calls.log"\ncase "$*" in "config get-contexts"*) exit 1 ;; esac\nexit 0\n' "$WORK" > "$WORK/bin/kubectl"
 rm -rf "$WORK/state" "$WORK/calls.log"
 out=$(run "$ROOT/scripts/down.sh")
+assert_eq 0 "$?" "down exits 0 when there is no AKS context"
+assert_contains "$out" "no k8s-lab-aks context in your kubeconfig" "the warning says there is no AKS context"
 assert_not_contains "$(cat "$WORK/calls.log")" "delete namespace" "down deletes nothing when there is no AKS context"
 assert_contains "$(cat "$WORK/calls.log")" "destroy -input=false" "down still reaches terraform destroy when there is no AKS context"
 cp "$WORK/kubectl.ok" "$WORK/bin/kubectl"
