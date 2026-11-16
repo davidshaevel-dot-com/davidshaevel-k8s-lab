@@ -2,10 +2,11 @@
 
 package controller
 
-// Contract tests: each one encodes one line of the contract written above Reconcile
-// in guardrails.go. They fail until the reconcile logic exists, and they go green as
-// you write it. Run them with `make test-contract`; plain `go test ./...` leaves them
-// out (build tag "contract").
+// Core contract tests: each one encodes one line of the contract written above
+// Reconcile in guardrails.go. They fail until the reconcile logic exists, and they go
+// green as you write it; when all of them pass, the scenario is done. Run them with
+// `make test-contract`; plain `go test ./...` leaves them out (build tag "contract").
+// The optional extension has its own group: contract_optional_test.go.
 //
 // They check only what can be seen in the cluster: which objects exist, with what
 // spec, and whether they keep changing. They do not care how the controller gets
@@ -44,27 +45,23 @@ var expectedQuotaHard = map[corev1.ResourceName]string{
 // Contract: "A NetworkPolicy named default-deny that selects every pod in the
 // namespace, lists both policy types, Ingress and Egress, and has no rules."
 func TestContractNewNamespaceGetsDefaultDenyPolicy(t *testing.T) {
-	g := gomega.NewWithT(t)
 	ns := newTestNamespace(t)
 
-	waitForDefaultDenyPolicy(g, ns)
+	waitForDefaultDenyPolicy(t, ns)
 }
 
 // Contract: "A ResourceQuota named default-quota whose spec.hard is exactly ..."
 func TestContractNewNamespaceGetsDefaultQuota(t *testing.T) {
-	g := gomega.NewWithT(t)
 	ns := newTestNamespace(t)
 
-	waitForDefaultQuota(g, ns)
+	waitForDefaultQuota(t, ns)
 }
 
 // Contract: "Every namespace it does not skip, including the ones that existed before
 // the controller started."
 func TestContractNamespaceFromBeforeStartupGetsGuardrails(t *testing.T) {
-	g := gomega.NewWithT(t)
-
-	waitForDefaultDenyPolicy(g, preexistingNamespace)
-	waitForDefaultQuota(g, preexistingNamespace)
+	waitForDefaultDenyPolicy(t, preexistingNamespace)
+	waitForDefaultQuota(t, preexistingNamespace)
 }
 
 // Contract: "When a guardrail is deleted by hand, it comes back: a new object with the
@@ -72,12 +69,12 @@ func TestContractNamespaceFromBeforeStartupGetsGuardrails(t *testing.T) {
 func TestContractDeletedPolicyComesBack(t *testing.T) {
 	g := gomega.NewWithT(t)
 	ns := newTestNamespace(t)
-	original := waitForDefaultDenyPolicy(g, ns)
+	original := waitForDefaultDenyPolicy(t, ns)
 
 	g.Expect(k8sClient.Delete(context.Background(), original)).To(gomega.Succeed())
 
-	waitForReplacement(g, &networkingv1.NetworkPolicy{}, client.ObjectKeyFromObject(original), original.UID)
-	waitForDefaultDenyPolicy(g, ns)
+	waitForReplacement(t, &networkingv1.NetworkPolicy{}, client.ObjectKeyFromObject(original), original.UID)
+	waitForDefaultDenyPolicy(t, ns)
 }
 
 // Contract: "When a guardrail is deleted by hand, it comes back: a new object with the
@@ -85,12 +82,12 @@ func TestContractDeletedPolicyComesBack(t *testing.T) {
 func TestContractDeletedQuotaComesBack(t *testing.T) {
 	g := gomega.NewWithT(t)
 	ns := newTestNamespace(t)
-	original := waitForDefaultQuota(g, ns)
+	original := waitForDefaultQuota(t, ns)
 
 	g.Expect(k8sClient.Delete(context.Background(), original)).To(gomega.Succeed())
 
-	waitForReplacement(g, &corev1.ResourceQuota{}, client.ObjectKeyFromObject(original), original.UID)
-	waitForDefaultQuota(g, ns)
+	waitForReplacement(t, &corev1.ResourceQuota{}, client.ObjectKeyFromObject(original), original.UID)
+	waitForDefaultQuota(t, ns)
 }
 
 // Contract: "Running Reconcile again on a namespace that is already correct changes
@@ -98,8 +95,8 @@ func TestContractDeletedQuotaComesBack(t *testing.T) {
 func TestContractReconcileIsIdempotent(t *testing.T) {
 	g := gomega.NewWithT(t)
 	ns := newTestNamespace(t)
-	waitForDefaultDenyPolicy(g, ns)
-	waitForDefaultQuota(g, ns)
+	waitForDefaultDenyPolicy(t, ns)
+	waitForDefaultQuota(t, ns)
 
 	// Give any follow-up reconcile of the creation time to finish before the
 	// resourceVersions are recorded.
@@ -110,7 +107,7 @@ func TestContractReconcileIsIdempotent(t *testing.T) {
 	quota := &corev1.ResourceQuota{}
 	g.Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: guardrailQuotaName}, quota)).To(gomega.Succeed())
 
-	consistently(g, func(g gomega.Gomega) {
+	consistently(t, func(g gomega.Gomega) {
 		policies := &networkingv1.NetworkPolicyList{}
 		g.Expect(k8sClient.List(ctx, policies, client.InNamespace(ns))).To(gomega.Succeed())
 		g.Expect(policies.Items).To(gomega.HaveLen(1), "exactly one NetworkPolicy in %s", ns)
@@ -128,10 +125,11 @@ func TestContractReconcileIsIdempotent(t *testing.T) {
 
 // waitForDefaultDenyPolicy waits until namespace ns holds the contract's NetworkPolicy
 // and returns it.
-func waitForDefaultDenyPolicy(g *gomega.WithT, ns string) *networkingv1.NetworkPolicy {
+func waitForDefaultDenyPolicy(t *testing.T, ns string) *networkingv1.NetworkPolicy {
+	t.Helper()
 	key := client.ObjectKey{Namespace: ns, Name: guardrailPolicyName}
 	var found *networkingv1.NetworkPolicy
-	eventually(g, func(g gomega.Gomega) {
+	eventually(t, func(g gomega.Gomega) {
 		policy := &networkingv1.NetworkPolicy{}
 		g.Expect(k8sClient.Get(context.Background(), key, policy)).To(gomega.Succeed())
 
@@ -150,10 +148,11 @@ func waitForDefaultDenyPolicy(g *gomega.WithT, ns string) *networkingv1.NetworkP
 
 // waitForDefaultQuota waits until namespace ns holds the contract's ResourceQuota and
 // returns it.
-func waitForDefaultQuota(g *gomega.WithT, ns string) *corev1.ResourceQuota {
+func waitForDefaultQuota(t *testing.T, ns string) *corev1.ResourceQuota {
+	t.Helper()
 	key := client.ObjectKey{Namespace: ns, Name: guardrailQuotaName}
 	var found *corev1.ResourceQuota
-	eventually(g, func(g gomega.Gomega) {
+	eventually(t, func(g gomega.Gomega) {
 		quota := &corev1.ResourceQuota{}
 		g.Expect(k8sClient.Get(context.Background(), key, quota)).To(gomega.Succeed())
 
@@ -173,8 +172,9 @@ func waitForDefaultQuota(g *gomega.WithT, ns string) *corev1.ResourceQuota {
 
 // waitForReplacement waits until an object exists at key whose UID differs from
 // deletedUID: a new object, not the deleted one.
-func waitForReplacement(g *gomega.WithT, obj client.Object, key client.ObjectKey, deletedUID types.UID) {
-	eventually(g, func(g gomega.Gomega) {
+func waitForReplacement(t *testing.T, obj client.Object, key client.ObjectKey, deletedUID types.UID) {
+	t.Helper()
+	eventually(t, func(g gomega.Gomega) {
 		g.Expect(k8sClient.Get(context.Background(), key, obj)).To(gomega.Succeed())
 		g.Expect(obj.GetUID()).NotTo(gomega.Equal(deletedUID))
 	}, "a new %s should replace the deleted one (UID %s)", key, deletedUID)

@@ -173,9 +173,11 @@ The tests poll: "eventually this holds" for things the controller must do, and
 level-triggered controller, which reaches the right state soon, without promising
 when.
 
-The two groups of tests are separate. The smoke tests prove the harness works. The
+The groups of tests are separate. The smoke tests prove the harness works. The core
 contract tests sit behind a build tag (`//go:build contract`) so that plain
 `go test ./...` stays green on the scaffold, and `make test-contract` turns them on.
+The optional tests need a second tag as well (`contract_optional`), so the core group
+can go fully green without them; `make test-contract-optional` runs them.
 
 ## The decisions the contract leaves open
 
@@ -188,3 +190,7 @@ The contract states these as questions. Questions to think through for each:
   made it, is overwriting it right, or is it someone's deliberate choice? How would
   your controller tell the difference, and what should a person see when it declines
   to act?
+- **Hand edits (the optional extension).** The API server stores more than you send:
+  it fills in defaults. What does "the spec differs from the contract" mean, then?
+  Which fields does your controller own, and which does it leave to the server or to
+  people? Does the watch you added for deletions also see edits?

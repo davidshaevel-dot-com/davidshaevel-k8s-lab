@@ -32,11 +32,9 @@ func TestSmokeAPIServerAnswers(t *testing.T) {
 }
 
 func TestSmokeManagerIsRunning(t *testing.T) {
-	g := gomega.NewWithT(t)
-
 	// The manager's client reads from the manager's cache, which only fills once the
 	// manager has started and its namespace watch is running.
-	eventually(g, func(g gomega.Gomega) {
+	eventually(t, func(g gomega.Gomega) {
 		ns := &corev1.Namespace{}
 		g.Expect(managerClient.Get(context.Background(),
 			client.ObjectKey{Name: preexistingNamespace}, ns)).To(gomega.Succeed())

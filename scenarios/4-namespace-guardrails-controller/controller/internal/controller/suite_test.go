@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/onsi/gomega"
+	"github.com/onsi/gomega/format"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -69,6 +70,15 @@ func TestMain(m *testing.M) {
 // It is a separate function so that its deferred cleanups run before os.Exit.
 func runSuite(m *testing.M) int {
 	ctrl.SetLogger(zap.New(zap.WriteTo(os.Stderr), zap.UseDevMode(true)))
+
+	// When an assertion fails on an API error, print the error's message only, not the
+	// whole Go struct behind it (Gomega prints the message first in any case).
+	format.RegisterCustomFormatter(func(value any) (string, bool) {
+		if _, isError := value.(error); isError {
+			return "", true
+		}
+		return "", false
+	})
 
 	if os.Getenv("KUBEBUILDER_ASSETS") == "" {
 		fmt.Fprintln(os.Stderr, "KUBEBUILDER_ASSETS is not set. Run the tests with "+
@@ -158,16 +168,18 @@ func newTestNamespace(t *testing.T) string {
 
 // eventually polls fn until every assertion in it passes or eventuallyTimeout runs
 // out. description says, in the failure message, what the test was waiting for.
-func eventually(g *gomega.WithT, fn func(g gomega.Gomega), description string, args ...any) {
-	g.Eventually(fn).
+func eventually(t *testing.T, fn func(g gomega.Gomega), description string, args ...any) {
+	t.Helper()
+	gomega.NewWithT(t).Eventually(fn).
 		WithTimeout(eventuallyTimeout).
 		WithPolling(pollInterval).
 		Should(gomega.Succeed(), append([]any{description}, args...)...)
 }
 
 // consistently checks that every assertion in fn keeps passing for settleDuration.
-func consistently(g *gomega.WithT, fn func(g gomega.Gomega), description string, args ...any) {
-	g.Consistently(fn).
+func consistently(t *testing.T, fn func(g gomega.Gomega), description string, args ...any) {
+	t.Helper()
+	gomega.NewWithT(t).Consistently(fn).
 		WithTimeout(settleDuration).
 		WithPolling(pollInterval).
 		Should(gomega.Succeed(), append([]any{description}, args...)...)

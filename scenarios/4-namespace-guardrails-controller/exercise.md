@@ -12,9 +12,11 @@ This scenario is a build, not a diagnosis.
 - **The scaffold is ready.** A Go project with controller-runtime, an envtest harness,
   tests and a Makefile are in [controller/](controller/). `Reconcile` is empty apart
   from its contract, written as comments. You write the logic.
-- **The tests are your target.** The smoke tests pass on the scaffold. The contract
-  tests fail until your logic does what the contract says, and go green as you write
-  it.
+- **The tests are your target.** The smoke tests pass on the scaffold. The core
+  contract tests fail until your logic does what the contract says, and go green as
+  you write it. When they all pass, the scenario is done. A separate group of
+  optional tests covers an extension (restoring a guardrail someone edited by hand)
+  for when you have time.
 - **No cluster needed until the last step.** The tests run against envtest: a real
   API server and etcd on your machine, with nothing else of Kubernetes.
 - **[walkthrough.md](walkthrough.md) explains the ideas, not the code.** It holds no
@@ -23,10 +25,11 @@ This scenario is a build, not a diagnosis.
 ## Who wrote what
 
 The scaffold (the Go project, `main.go`, the empty `Reconcile` and its contract, the
-`SetupWithManager` stub), the envtest harness, the smoke and contract tests, the
-Makefile and this text were built with AI coding agents under David Shaevel's
-direction. The reconcile logic, the watches it needs, the decisions the contract
-leaves open and the tests for those decisions are his.
+`SetupWithManager` stub), the envtest harness, the smoke tests, both groups of
+contract tests (core and optional), the Makefile and this text were built with AI
+coding agents under David Shaevel's direction. The reconcile logic, the watches it
+needs, the optional extension if he takes it on, the decisions the contract leaves
+open and the tests for those decisions are his.
 
 ## Prerequisites
 
@@ -34,11 +37,11 @@ Install these first.
 
 | Tool | Version | Tested with | Needed for |
 |---|---|---|---|
-| Go | 1.26 or newer (the repo pins 1.26.11 in `.tool-versions`) | not run yet | everything |
+| Go | 1.26 or newer (the repo pins 1.26.11 in `.tool-versions`) | 1.26.11 (darwin/arm64) | everything |
 | GNU make | 3.81 or newer | 3.81 | everything |
 | Internet access | | | the first build (Go modules) and the first test run (envtest binaries) |
-| kubectl | 1.36 or newer | 1.37.0 | step 10 only |
-| Docker Desktop (running) and kind | as in the repo's [README](../../README.md#prerequisites) | 29.9.2, 0.33.0 | step 10 only |
+| kubectl | 1.36 or newer | 1.37.0, for the `make run` context check only | step 11 only |
+| Docker Desktop (running) and kind | as in the repo's [README](../../README.md#prerequisites) | not run with this scenario | step 11 only |
 
 Go: use any installer. One way is [asdf](https://asdf-vm.com/) with its `golang`
 plugin, which reads the version from `.tool-versions` at the repo root. Another is the
@@ -68,7 +71,7 @@ Run them in order, from the repo root unless a step says otherwise.
 cd scenarios/4-namespace-guardrails-controller/controller
 ```
 
-Every `make` target in this exercise up to step 9 runs from here. Run `make help` to
+Every `make` target in this exercise up to step 10 runs from here. Run `make help` to
 list them.
 
 ### 2. Check Go
@@ -88,8 +91,8 @@ make vet
 ```
 
 The first run downloads the Go modules, which takes a minute. Both end without an
-error. `make vet` also checks the contract tests, which plain `go vet ./...` would skip
-(they sit behind a build tag; see step 5).
+error. `make vet` also checks both groups of contract tests, which plain
+`go vet ./...` would skip (they sit behind build tags; see step 5).
 
 ### 4. Run the smoke tests (they pass)
 
@@ -102,7 +105,7 @@ API server and etcd, start the controller's manager against them, and check thre
 things: the API server answers with version 1.36, the manager is running, and a
 namespace can be created. Expect three `--- PASS` lines and `ok` at the end.
 
-### 5. Run the contract tests (they fail, and that is expected)
+### 5. Run the core contract tests (they fail, and that is expected)
 
 ```bash
 make test-contract
@@ -111,18 +114,38 @@ make test-contract
 This is your target. Each contract test creates a namespace, waits up to 10 seconds
 for the cluster to reach the state the contract describes, and fails if it does not.
 With an empty `Reconcile`, nothing ever appears, so all six fail, after about a
-minute in total. A failure looks like this:
+minute in total. Between the controller's log lines, each failure looks like this
+(the namespace name is random, and the path is shortened here):
 
 ```text
-(filled in from the first real run)
+=== RUN   TestContractDeletedPolicyComesBack
+    contract_test.go:72:
+        Timed out after 10.004s.
+        the controller should create NetworkPolicy guardrails-test-bxhv8/default-deny as the contract describes
+        The function passed to Eventually failed at .../internal/controller/contract_test.go:134 with:
+        Expected success, but got an error:
+            <*errors.StatusError | 0x656943b2fe00>:
+            networkpolicies.networking.k8s.io "default-deny" not found
+
+--- FAIL: TestContractDeletedPolicyComesBack (10.02s)
+```
+
+and the run ends with:
+
+```text
+FAIL	github.com/davidshaevel-dot-com/davidshaevel-k8s-lab/scenarios/4-namespace-guardrails-controller/controller/internal/controller	63.700s
+FAIL
+make: *** [test-contract] Error 1
 ```
 
 Read the failures as statements about the cluster: "the controller should create
-NetworkPolicy ... as the contract describes", then the reason, here `not found`. A
-failure that mentions compiling, `KUBEBUILDER_ASSETS` or starting envtest is not one
+NetworkPolicy ... as the contract describes", then the reason, here `not found`. The
+first line of each (`contract_test.go:72`) is the line in the test that was waiting.
+A failure that mentions compiling, `KUBEBUILDER_ASSETS` or starting envtest is not one
 of these: it means the setup is broken, so fix that before you go on.
 
-The six tests, and the line of the contract each one encodes:
+The six core tests, and the line of the contract each one encodes. When all six
+pass, the scenario is done.
 
 | Test | Contract line |
 |---|---|
@@ -133,13 +156,22 @@ The six tests, and the line of the contract each one encodes:
 | `TestContractDeletedQuotaComesBack` | A guardrail deleted by hand comes back |
 | `TestContractReconcileIsIdempotent` | Running again on a correct namespace changes nothing |
 
+The optional group, `make test-contract-optional`, fails the same way for now. It is
+not part of "done"; step 10 comes back to it.
+
+| Optional test | Contract line (marked OPTIONAL) |
+|---|---|
+| `TestOptionalEditedPolicyIsRestored` | A guardrail edited by hand goes back to the contract's spec |
+| `TestOptionalEditedQuotaIsRestored` | A guardrail edited by hand goes back to the contract's spec |
+
 ### 6. Read the contract
 
 Open [controller/internal/controller/guardrails.go](controller/internal/controller/guardrails.go).
 The comment above `Reconcile` is the contract: what the controller watches, what it
-ensures, what happens when a guardrail is deleted by hand, idempotency, what to return
-and when to requeue, and the RBAC the logic will need. The test files are
-`suite_test.go` (the harness), `smoke_test.go` and `contract_test.go` in the same
+ensures, what happens when a guardrail is deleted by hand, the optional extension for
+hand edits, idempotency, what to return and when to requeue, and the RBAC the logic
+will need. The test files are `suite_test.go` (the harness), `smoke_test.go`,
+`contract_test.go` (core) and `contract_optional_test.go` (optional) in the same
 directory.
 
 ### 7. Make the decisions the contract leaves to you
@@ -154,7 +186,7 @@ Write each one down, with your reason, before you write the code:
   already carries a NetworkPolicy named `default-deny` and a ResourceQuota named
   `lab-quota`.
 
-### 8. Write the logic until the contract tests pass
+### 8. Write the logic until the core contract tests pass
 
 Two places in `guardrails.go`:
 
@@ -172,7 +204,20 @@ your rule skips gets no guardrails, and the case of an existing object with a
 guardrail's name behaves as you decided. Follow the existing tests: assert on what the
 cluster holds, not on how your code got there.
 
-### 10. See it work on a cluster
+### 10. Optional: restore hand-edited guardrails
+
+Only once `make test-contract` is fully green. The contract's OPTIONAL section asks
+the controller to put a hand-edited guardrail's spec back, and poses the question to
+think about first. Work against:
+
+```bash
+make test-contract-optional
+```
+
+`make test-contract` must stay green while you do. Skipping this step leaves the
+scenario done.
+
+### 11. See it work on a cluster
 
 Use a local kind cluster. Do not point the controller at a shared or production
 cluster: it changes every namespace it does not skip, and your skip rule decides

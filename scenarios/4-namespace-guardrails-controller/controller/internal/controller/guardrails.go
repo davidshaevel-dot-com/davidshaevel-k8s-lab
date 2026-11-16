@@ -26,7 +26,7 @@ type GuardrailsReconciler struct {
 // because a Namespace is cluster-scoped) whenever something it watches changes, and
 // once for every existing namespace when it starts.
 //
-// THE CONTRACT
+// # The contract
 //
 // What it watches
 //   - Namespaces. Wired in SetupWithManager below.
@@ -45,8 +45,13 @@ type GuardrailsReconciler struct {
 // When a guardrail is deleted by hand
 //   - It comes back: a new object with the same name and spec.
 //
-// When a guardrail is edited by hand
-//   - Not decided yet (pending a ruling on TT-807).
+// When a guardrail is edited by hand (OPTIONAL: an extension, not a requirement)
+//   - The core contract requires nothing for a hand-edited guardrail. As an optional
+//     extension, the controller puts its spec back to the contract's. Its tests are
+//     a separate group (make test-contract-optional); do the core contract first.
+//   - A question to think about before you start: the API server fills in fields
+//     you did not send (defaults), so the object you read back is not the object
+//     you wrote. How does your code tell "edited by hand" from "defaulted"?
 //
 // When an object with a guardrail's name already exists and this controller did not
 // create it
