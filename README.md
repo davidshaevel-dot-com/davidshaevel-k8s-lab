@@ -107,7 +107,11 @@ has no timer and no `make reveal`. `make plant` is only for scenarios 2 and 3.
    - `.lab/state`, `.lab/last-plant.log` and `.lab/last-heal.log`;
    - the shell tests in `tests/` (`*.sh`), which test the lab's own machinery;
    - diffing the live objects against this repo's manifests (`kubectl diff -k ...`);
-   - `kubectl get --show-managed-fields`, which shows which tool changed which field.
+   - `kubectl get --show-managed-fields`, which shows which tool changed which field;
+   - the Azure portal's YAML and JSON views of objects in the lab, which show the same
+     managed fields, and the portal's Copilot helpers (the "Troubleshoot" button, "Ask
+     Copilot" and the YAML page's help prompts), which do the diagnosing for you. The
+     portal's Overview, Pods, Replica sets, Events and Network policies pages remain fine.
 
    The passwords in `.lab/*-password` are fair game: they stand in for a secret store.
 3. Fix it the way you would in production. (`make heal` is the reset button, not the fix.)
