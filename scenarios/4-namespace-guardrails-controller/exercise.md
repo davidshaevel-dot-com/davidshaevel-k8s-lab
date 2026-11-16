@@ -57,6 +57,8 @@ The Makefile fetches everything else itself, at pinned versions:
 | `setup-envtest` | v0.24.1, run with `go run`, never installed | Go module cache |
 | envtest binaries (kube-apiserver, etcd) | Kubernetes 1.36.2 | `controller/bin/k8s/` (gitignored) |
 
+These are the versions the scaffold's tests were run with.
+
 The envtest binaries are 1.36.2, not 1.36.5 like the lab cluster: no 1.36.5 build of
 them is published, and 1.36.2 is the newest 1.36 build. Patch releases do not change
 the API, so the tests are not affected.
@@ -226,10 +228,12 @@ whether that includes the cluster's own.
 > **Not on the AKS lab cluster.** It is billable and shared with the other
 > scenarios, and a guardrail in the wrong namespace there breaks scenarios 2 and 3.
 
-From the repo root, create the kind cluster. It holds no app, so no `lab` namespace,
-until you run `make deploy`.
+Go back to the repo root (you are still in the controller's directory from step 1)
+and create the kind cluster. It holds no app, so no `lab` namespace, until you run
+`make deploy`.
 
 ```bash
+cd ../../..
 make kind-up
 ```
 
@@ -250,16 +254,19 @@ Terminal two:
 kubectl get networkpolicy,resourcequota -A
 kubectl create namespace guardrails-demo
 kubectl -n guardrails-demo get networkpolicy,resourcequota
-kubectl -n guardrails-demo get networkpolicy --watch
+kubectl -n guardrails-demo get networkpolicy --watch --output-watch-events
 ```
 
-Leave the watch running and open a third terminal:
+`--output-watch-events` adds an `EVENT` column (`ADDED`, `MODIFIED`, `DELETED`);
+without it, a watch does not show deletions. Leave it running and open a third
+terminal:
 
 ```bash
 kubectl -n guardrails-demo delete networkpolicy default-deny
 ```
 
-In terminal two, the policy disappears and comes back within a second or two. Do the
+In terminal two, a `DELETED` line is followed within a second or two by an `ADDED`
+line for a new `default-deny`. Do the
 same with `kubectl -n guardrails-demo delete resourcequota default-quota`. In terminal
 one, find the log lines of the reconciles your deletes caused.
 
@@ -269,7 +276,8 @@ Then check your skip rule:
 kubectl get networkpolicy -A
 ```
 
-Only the namespaces your rule covers should have a `default-deny`.
+Every namespace your rule does not skip should have a `default-deny`, and none of the
+namespaces it skips should.
 
 When you are done: Ctrl-C in terminals one and two, then, from the repo root:
 
