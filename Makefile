@@ -2,10 +2,10 @@
 SHELL := /bin/bash
 SCENARIO ?=
 
-.PHONY: help up down kind-up kind-down deploy plant reveal heal status test check
+.PHONY: help up down kind-up kind-down deploy plant reveal heal status clear-events test check
 
 help: ## List targets
-	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-10s %s\n", $$1, $$2}'
+	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-13s %s\n", $$1, $$2}'
 
 up: ## Create the AKS lab cluster (terraform apply) and fetch Entra ID credentials
 	@scripts/up.sh
@@ -33,6 +33,9 @@ heal: ## Undo the planted fault and restore the healthy state
 
 status: ## Check the app end to end
 	@scripts/status.sh
+
+clear-events: ## Delete all events in the lab namespace, for a clean slate between runs
+	@scripts/clear-events.sh
 
 test: ## Run the tests that need no cluster
 	@test -x .venv/bin/pytest || (python3 -m venv .venv && .venv/bin/pip install -q -r app/requirements-dev.txt)

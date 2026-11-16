@@ -132,6 +132,18 @@ rm -rf "$WORK/state" "$WORK/calls.log"
 run "$ROOT/scripts/status.sh" >/dev/null
 assert_contains "$(grep -E '^kubectl .* get ' "$WORK/calls.log" | head -1)" "get deployments,replicasets,statefulsets,pods -o wide" "make status lists Deployments, ReplicaSets, StatefulSets and pods"
 
+echo "clear-events"
+for ENVIRONMENT in kind aks; do
+  case $ENVIRONMENT in kind) ctx="kind-${KIND_CLUSTER_NAME:-k8s-lab}" ;; aks) ctx=k8s-lab-aks ;; esac
+  rm -rf "$WORK/state" "$WORK/calls.log"
+  out=$(run "$ROOT/scripts/clear-events.sh")
+  assert_eq 0 "$?" "clear-events exits 0 (env=$ENVIRONMENT)"
+  assert_eq "kubectl --context $ctx -n lab delete events --all" "$(cat "$WORK/calls.log" 2>/dev/null)" "clear-events deletes only the events, in the lab namespace and context (env=$ENVIRONMENT)"
+  assert_contains "$out" "namespace lab (context $ctx)" "clear-events says what it cleared and where (env=$ENVIRONMENT)"
+done
+assert_contains "$(make -s -C "$ROOT" help)" "clear-events" "make help lists clear-events"
+assert_eq "" "$(grep -l clear-events "$ROOT"/scripts/{heal,plant,deploy,status}.sh)" "no other target clears events"
+
 echo "plant chooses at random"
 ENVIRONMENT=kind
 seen=""

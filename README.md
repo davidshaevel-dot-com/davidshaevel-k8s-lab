@@ -50,6 +50,7 @@ make plant SCENARIO=3     # plants one random fault; start your timer and work i
 make reveal               # only after you have written down your diagnosis
 make heal                 # restores the healthy state
 make status               # HEALTHY again
+make clear-events         # optional: clears the namespace's events before the next run
 make kind-down            # when you are done
 ```
 
@@ -77,6 +78,7 @@ make plant SCENARIO=2     # work it, write the cause down, then:
 make reveal
 make heal
 make status
+make clear-events         # optional: clears the namespace's events before the next run
 make down                 # terraform destroy (type "yes"), at the end of the day
 ```
 
@@ -100,7 +102,10 @@ cluster-admin role assignment goes to whoever runs `apply`, and that must be you
 4. Write the cause down, stop the timer, then run `make reveal`.
 5. Copy `runs/TEMPLATE.md` to `runs/YYYY-MM-DD-s<n>-<short-name>.md` and fill it in.
 6. Read the walkthrough (below) and compare.
-7. `make heal`, `make status`, and go again: each plant is a fresh draw.
+7. `make heal`, `make status`, and go again: each plant is a fresh draw. Optionally run
+   `make clear-events` first: events stay in the namespace for about an hour, and the last
+   run's would mix into the next run's `describe` output and event lists. This is a lab
+   convenience: on a real cluster, events are evidence and are left alone.
 
 ### When something is off
 
