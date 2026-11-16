@@ -1,9 +1,3 @@
-resource "random_string" "suffix" {
-  length  = 5
-  upper   = false
-  special = false
-}
-
 resource "azurerm_resource_group" "lab" {
   name     = "${var.prefix}-rg"
   location = var.location

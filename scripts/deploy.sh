@@ -16,10 +16,10 @@ build_image_aks() {
   local acr login_server image
   acr=$(tf_out acr_name)
   login_server=$(tf_out acr_login_server)
-  image="$login_server/$APP_IMAGE_NAME:$APP_IMAGE_TAG"
+  image="$login_server/$APP_IMAGE_REPO:$APP_IMAGE_TAG"
   if [ "${LAB_IMAGE_BUILD:-}" != local ]; then
-    info "Building $APP_IMAGE_NAME:$APP_IMAGE_TAG in Azure Container Registry $acr (az acr build)"
-    if az_sub acr build --registry "$acr" --image "$APP_IMAGE_NAME:$APP_IMAGE_TAG" --no-logs --output none "$LAB_ROOT/app"; then
+    info "Building $APP_IMAGE_REPO:$APP_IMAGE_TAG in Azure Container Registry $acr (az acr build)"
+    if az_sub acr build --registry "$acr" --image "$APP_IMAGE_REPO:$APP_IMAGE_TAG" --no-logs --output none "$LAB_ROOT/app"; then
       return 0
     fi
     info "az acr build failed (ACR Tasks may not be allowed on this subscription); building locally with Docker instead"
@@ -68,7 +68,7 @@ render_overlay() {
       cat <<YAML
 images:
   - name: $APP_IMAGE_NAME
-    newName: $login_server/$APP_IMAGE_NAME
+    newName: $login_server/$APP_IMAGE_REPO
     newTag: "$APP_IMAGE_TAG"
 patches:
   - target: {kind: EndpointSlice, name: postgres-1}

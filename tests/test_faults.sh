@@ -123,6 +123,37 @@ run "$ROOT/scripts/deploy.sh" --apply-only >/dev/null
 grep -q 'apply.*-k' "$WORK/calls.log" && fail "deploy applies nothing when terraform output fails" || pass "deploy applies nothing when terraform output fails"
 cp "$WORK/terraform.ok" "$WORK/bin/terraform"
 
+echo "resource names"
+block() { sed -n "/^$1 \"$2\"/,/^}/p" "$ROOT/terraform/$3"; } # kind name file
+assert_contains "$(block variable acr_name variables.tf)" 'default     = "k8sdevlabacr"' "registry name defaults to k8sdevlabacr"
+assert_contains "$(block variable postgres_server_name variables.tf)" 'default     = "k8s-lab-pg"' "PostgreSQL server name defaults to k8s-lab-pg"
+assert_contains "$(block resource azurerm_container_registry aks.tf)" "name                = var.acr_name" "the registry takes its name from var.acr_name"
+assert_contains "$(block resource azurerm_postgresql_flexible_server postgres.tf)" "name                          = var.postgres_server_name" "the server takes its name from var.postgres_server_name"
+assert_eq "" "$(grep -l random_string "$ROOT"/terraform/*.tf || true)" "no random suffix in resource names"
+cp "$WORK/bin/terraform" "$WORK/terraform.ok"
+cat > "$WORK/bin/terraform" <<'STUB'
+#!/usr/bin/env bash
+echo "terraform $*" >> "$(dirname "$0")/../calls.log"
+case "$*" in
+  *"output -raw acr_name"*) printf k8sdevlabacr ;;
+  *"output -raw acr_login_server"*) printf k8sdevlabacr.azurecr.io ;;
+  *"output -raw postgres_private_ip"*) printf 10.100.8.4 ;;
+  *"output -raw private_endpoint_subnet_cidr"*) printf 10.100.8.0/24 ;;
+  *output*) printf placeholder ;;
+esac
+STUB
+ENVIRONMENT=aks
+rm -rf "$WORK/state" "$WORK/calls.log"
+run "$ROOT/scripts/deploy.sh" >/dev/null
+assert_contains "$(cat "$WORK/calls.log")" "az acr build --registry k8sdevlabacr --image davidshaevel-k8s-lab/labapp:0.1.0" "AKS builds davidshaevel-k8s-lab/labapp:0.1.0 in k8sdevlabacr"
+assert_contains "$(cat "$WORK/state/overlay/kustomization.yaml" 2>/dev/null)" "newName: k8sdevlabacr.azurecr.io/davidshaevel-k8s-lab/labapp" "AKS deploys k8sdevlabacr.azurecr.io/davidshaevel-k8s-lab/labapp"
+ENVIRONMENT=kind
+rm -rf "$WORK/state" "$WORK/calls.log"
+run "$ROOT/scripts/deploy.sh" >/dev/null
+assert_contains "$(cat "$WORK/calls.log")" "docker build -q -t labapp:0.1.0" "kind keeps the local image labapp:0.1.0"
+assert_not_contains "$(cat "$WORK/state/overlay/kustomization.yaml" 2>/dev/null)" "newName" "kind deploys the local image unchanged"
+cp "$WORK/terraform.ok" "$WORK/bin/terraform"
+
 echo "revision history"
 assert_contains "$(cat "$ROOT/k8s/base/deployment.yaml")" "revisionHistoryLimit: 0" "old ReplicaSets (earlier faults) are not kept"
 

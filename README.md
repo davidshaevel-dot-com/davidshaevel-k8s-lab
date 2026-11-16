@@ -33,6 +33,52 @@ The AKS path also needs an Azure role that can create role assignments on the
 subscription (Owner, or Contributor plus User Access Administrator): Terraform grants
 the cluster identities and you their roles.
 
+## Two ways to run the lab: kind and AKS
+
+[kind](https://kind.sigs.k8s.io/) ("Kubernetes in Docker") is a tool from the Kubernetes
+project that runs a whole cluster on one machine, with each node as a Docker container.
+It was made for testing Kubernetes itself and for local development. It is free and
+needs only Docker.
+
+How this lab uses it:
+
+- **The cluster.** `make kind-up` checks that Docker is running, then creates a cluster
+  named `k8s-lab` from `kind/cluster.yaml`: one control-plane node and one worker. It
+  waits up to two minutes for the nodes, switches `kubectl` to the context
+  `kind-k8s-lab`, and lists the nodes. If the cluster already exists, it leaves it as it
+  is. kind's default network plugin, kindnet, enforces NetworkPolicy, so the app's
+  policies apply here as they do on AKS.
+- **The image.** `make deploy` builds `labapp:0.1.0` with your local Docker and copies it
+  into the nodes with `kind load docker-image`. No registry is involved.
+- **The database.** PostgreSQL 17 runs inside the cluster as a StatefulSet in the
+  namespace `lab`, under the same Service name, `postgres`, that the app uses on AKS.
+- **Cleanup.** `make kind-down` deletes the cluster and the lab's local records for it.
+- **Tests.** The repo's end-to-end test (`tests/e2e-kind.sh`) runs on a kind cluster.
+
+What each path gives you:
+
+| | kind (Path A) | AKS (Path B) |
+|---|---|---|
+| Where it runs | Docker on your machine; free | Azure, East US; billable while it is up |
+| Control plane | a container on your machine | managed by Azure |
+| Nodes | one control-plane and one worker container | a system node pool and an autoscaled user node pool |
+| Network | kindnet, inside Docker | a virtual network with network security groups; Azure CNI Overlay with Cilium |
+| Database | PostgreSQL in the cluster | Azure Database for PostgreSQL behind a private endpoint, with private DNS |
+| Image | built locally, loaded into the nodes | built in Azure Container Registry, pulled with the kubelet's managed identity |
+| Sign-in | the admin kubeconfig kind writes | Entra ID with Azure RBAC, from authorized IP ranges only |
+| Scenarios | 2 (five of its six faults) and 3 | 1, 2, 3 and 5 |
+
+Scenario 4, a controller you write, runs anywhere (see the [scenario table](#scenarios)).
+
+kind has no managed control plane, node pools, cluster autoscaler, private endpoint,
+virtual network, network security group, Entra ID sign-in, managed identities or
+container registry. That is why scenario 1 (an AKS upgrade) and scenario 5 (the cluster
+autoscaler) need AKS. It is also why one of scenario 2's six faults, the Azure network
+security group, is skipped on kind, so scenario 2 picks from the other five there.
+
+The practice transfers: Deployments, Services, NetworkPolicies, probes, quotas and the
+other Kubernetes API objects behave the same on both.
+
 ## Quick start
 
 Pick one path. Each runs top to bottom, in order.
@@ -55,9 +101,8 @@ make clear-events         # optional: clears the namespace's events before the n
 make kind-down            # when you are done
 ```
 
-On `kind`, PostgreSQL runs inside the cluster. One of scenario 2's six faults (the Azure
-network security group) needs Azure networking and is skipped there; scenario 2 picks from
-the other five. Scenarios 1 and 5 need AKS.
+What runs on `kind`, and what needs AKS: see
+[Two ways to run the lab](#two-ways-to-run-the-lab-kind-and-aks).
 
 ### Path B: AKS lab cluster (all scenarios)
 
@@ -196,6 +241,15 @@ What the app is and how it runs: [app/README.md](app/README.md).
   (`linux/amd64`, pushed with `az acr login`) instead, and tells you to start Docker
   Desktop if it is not running. `LAB_IMAGE_BUILD=local make deploy` skips straight to the
   local build.
+- **Names.** The registry is `k8sdevlabacr` and the PostgreSQL server `k8s-lab-pg`. Both
+  names are unique across all of Azure, and these are taken by this lab, so if you run it
+  in your own subscription, set `acr_name` and `postgres_server_name` in
+  `terraform.tfvars` (the example file shows both). On AKS the image is
+  `<registry>.azurecr.io/davidshaevel-k8s-lab/labapp:0.1.0`.
+- **Changing those names on a running lab.** A new registry or server name replaces that
+  resource, so never apply the change over a running lab. Run `make down` before you pull
+  it, then `make up` and `make deploy` after. (The names changed once, from a random
+  suffix to the ones above.)
 - **State.** Terraform state is local and gitignored. It holds the database admin
   password; never commit it.
 
