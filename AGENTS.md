@@ -73,6 +73,7 @@ davidshaevel-k8s-lab/
 │   ├── terraform/             # AKS lab cluster, VNet, NSGs, PostgreSQL + private endpoint, ACR
 │   ├── scripts/               # Bash behind the Makefile targets (lib.sh holds shared helpers)
 │   ├── faults/                # One file per planted fault: plant/heal/supports functions
+│   ├── docs/                  # Reference pages (azure-portal.md: kubectl and the portal side by side)
 │   ├── scenarios/<n>-<name>/  # scenario.txt (alert) + walkthrough.md (read after the attempt)
 │   │                          # 0-warm-up-…: exercise.md in place of scenario.txt, plants nothing
 │   ├── runs/                  # David's run logs + TEMPLATE.md, TEMPLATE-warm-up.md

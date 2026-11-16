@@ -10,6 +10,10 @@ meet one that goes wrong.
   numbered scenarios (2 and 3). There is no timer and no `make reveal`.
 - **Both paths.** The steps work on the local `kind` cluster and on the AKS lab cluster.
   The few differences are listed at the end.
+- **A second look in the Azure portal (optional, AKS only).** Some steps end with a note
+  on where the portal shows the same thing; [docs/azure-portal.md](../../docs/azure-portal.md) maps the whole lab.
+  `kubectl` stays the primary tool: answer each question from its output first. kind
+  has no portal.
 - **Answer the questions from what you see,** and write the answers down. Read
   [walkthrough.md](walkthrough.md) only after you have finished, then compare.
 
@@ -51,6 +55,11 @@ Write down the ReplicaSet's name and the names of the two `web` pods.
 - The ReplicaSet is named `web-` plus a suffix, and each pod is named after the
   ReplicaSet plus a suffix of its own. Where else does the ReplicaSet's suffix appear?
 
+*Second look in the portal (AKS only, optional):* `k8s-lab-aks` → Kubernetes resources
+→ Workloads → Deployments → `web` → Overview. Under Workloads, the Replica sets tab lists
+the same ReplicaSet as "Current replica set", and the Pods tab lists the two pods with
+their Node and Pod IP. Show labels adds the labels.
+
 ## Two things to expect
 
 - `kubectl rollout restart` does not delete or restart any pod itself. It stamps an
@@ -75,6 +84,10 @@ appears until step 2.
 
 - As lines appear, note two columns for each: `REASON` and `OBJECT`. Which kinds of
   object show up, and in what order?
+
+*Second look in the portal (AKS only, optional):* `web` → Events shows the
+Deployment's events, with "Last seen" in UTC rather than as an age. It does not stream;
+use Refresh.
 
 ### 2. Trigger the rollout (terminal two)
 
@@ -113,6 +126,13 @@ kubectl -n lab get deployment web -o jsonpath='{.spec.template.metadata.annotati
 You may still see an old pod in `Terminating` for a few seconds. If so, run the first
 command again.
 
+*Second look in the portal (AKS only, optional):* `web` → Overview. Compare Replicas
+and Rolling update strategy with what `rollout status` printed, and the Replica sets
+tab's "Current replica set" and "Old replica sets" with the first command's output.
+The YAML tab shows the pod template's annotations; look, but do not edit there. One
+field is known to disagree with the Deployment's spec; see
+[docs/azure-portal.md](../../docs/azure-portal.md) and trust `kubectl`.
+
 ### 5. Read one new pod's story (terminal two)
 
 The first line picks the newest `web` pod, which is one of the two the rollout created.
@@ -134,6 +154,10 @@ Read the `Events` table at the bottom from top to bottom.
 - No event says that a probe passed. How can you tell that the readiness probe passed,
   and roughly when? (Look at `Conditions`.)
 
+*Second look in the portal (AKS only, optional):* Workloads → Pods, filtered to
+namespace `lab`, then the pod, shows its details and events; `web` → Live logs →
+Select a Pod streams its logs, like `kubectl -n lab logs -f <pod name>`.
+
 ### 6. Find the pods behind the Service (terminal two)
 
 ```bash
@@ -148,6 +172,10 @@ This exercise is about the slice for `web`.
   step 4? Are any old pod IPs still there?
 - The Service `web` listens on port 80. Which port does the slice list, and why?
 - In the YAML, what links each endpoint to its pod, and what do its `conditions` say?
+
+*Second look in the portal (AKS only, optional):* the portal has no page for
+EndpointSlices. Services, gateways and ingresses shows the Service `web` itself; the
+slice is read with `kubectl`.
 
 Stop the watch in terminal one with Ctrl-C.
 
@@ -168,3 +196,4 @@ Stop the watch in terminal one with Ctrl-C.
 | Where `web` pods run | the one worker node, `k8s-lab-worker` | a node in the `user` pool (it scales from 1 to 3 nodes) |
 | Other pods in `lab` | `postgres-0`, the in-cluster database | none: the database is outside the cluster |
 | The image | `labapp:0.1.0`, loaded onto the node by `make deploy` | `labapp:0.1.0` from the lab's container registry, pulled by the node the first time it ran the app |
+| Azure portal | none | an optional second look; see [docs/azure-portal.md](../../docs/azure-portal.md) |

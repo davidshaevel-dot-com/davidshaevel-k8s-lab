@@ -62,7 +62,7 @@ At no point are fewer than 2 Ready pods behind the Service. Steps 2 and 3 can la
 moment apart, so their events may interleave slightly.
 
 **Where it shows:** `ScalingReplicaSet` events on `deployment/web`, one per change of
-size, with messages like "Scaled up replica set web-… to 1". The lines that
+size, with messages like "Scaled up replica set web-… from 0 to 1". The lines that
 `rollout status` printed are the same progress, read from the Deployment's status.
 `kubectl -n lab describe deployment web` shows the result in `Conditions`: `Available`
 is `True` (`MinimumReplicasAvailable`) and `Progressing` is `True`

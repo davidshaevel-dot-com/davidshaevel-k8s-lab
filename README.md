@@ -158,6 +158,7 @@ kind/           kind cluster config
 terraform/      the AKS lab cluster and everything around it
 scripts/        what the Makefile targets run
 faults/         the planted faults (spoilers)
+docs/           reference pages: kubectl and the Azure portal, side by side
 scenarios/      one folder per scenario: scenario.txt (the alert) and walkthrough.md;
                 the warm-up (0) has exercise.md in place of scenario.txt
 runs/           run logs, one per attempt, and their templates
@@ -192,6 +193,9 @@ What the app is and how it runs: [app/README.md](app/README.md).
   local build.
 - **State.** Terraform state is local and gitignored. It holds the database admin
   password; never commit it.
+
+Where each Kubernetes object and Azure resource of the lab shows up in the Azure portal,
+next to the `kubectl` or `az` command that shows it: [docs/azure-portal.md](docs/azure-portal.md).
 
 ### Access: the break-glass route
 
