@@ -154,9 +154,12 @@ Read the `Events` table at the bottom from top to bottom.
 - No event says that a probe passed. How can you tell that the readiness probe passed,
   and roughly when? (Look at `Conditions`.)
 
-*Second look in the portal (AKS only, optional):* Workloads → Pods, filtered to
-namespace `lab`, then the pod, shows its details and events; `web` → Live logs →
-Select a Pod streams its logs, like `kubectl -n lab logs -f <pod name>`.
+*Second look in the portal (AKS only, optional):* Workloads → Pods, then the pod. It
+opens on its Overview: the Essentials show Controlled by, Node and Pod IP, and the
+Containers section has a Conditions tab. Its Events page lists the pod's events. Its
+Live logs page streams the logs, like `kubectl -n lab logs -f <pod name>`, once you
+choose the pod in Select a Pod. Opening a pod from the list also ticks its checkbox;
+leave the command bar alone.
 
 ### 6. Find the pods behind the Service (terminal two)
 
@@ -173,9 +176,10 @@ This exercise is about the slice for `web`.
 - The Service `web` listens on port 80. Which port does the slice list, and why?
 - In the YAML, what links each endpoint to its pod, and what do its `conditions` say?
 
-*Second look in the portal (AKS only, optional):* the portal has no page for
-EndpointSlices. Services, gateways and ingresses shows the Service `web` itself; the
-slice is read with `kubectl`.
+*Second look in the portal (AKS only, optional):* Services, gateways and ingresses →
+Services → `web` → Overview. The Ports tab's Endpoints column shows the addresses behind
+the Service, and the Pods tab shows the pods. No portal page lists the EndpointSlice
+objects themselves, so their `conditions` and `targetRef` come from `kubectl`.
 
 Stop the watch in terminal one with Ctrl-C.
 
