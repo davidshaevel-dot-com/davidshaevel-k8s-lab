@@ -208,8 +208,8 @@ the lab cluster.
 make status
 ```
 
-`make status` lists the Deployments, StatefulSets and pods in `lab`, then runs four
-checks:
+`make status` lists the Deployments, ReplicaSets, StatefulSets and pods in `lab`, then runs
+four checks:
 
 1. the `web` rollout is complete;
 2. the Service `web` has ready endpoints;
