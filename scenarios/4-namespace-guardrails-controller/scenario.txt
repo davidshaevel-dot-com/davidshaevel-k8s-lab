@@ -5,4 +5,4 @@ ResourceQuota, and both keep disappearing. Write a small controller in Go
 that creates them in every namespace and puts them back when someone
 removes them, with tests that run against envtest.
 
-(Content for this scenario comes in a later issue.)
+Start with exercise.md in this folder.
