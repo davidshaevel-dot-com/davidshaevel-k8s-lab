@@ -126,6 +126,12 @@ cp "$WORK/terraform.ok" "$WORK/bin/terraform"
 echo "revision history"
 assert_contains "$(cat "$ROOT/k8s/base/deployment.yaml")" "revisionHistoryLimit: 0" "old ReplicaSets (earlier faults) are not kept"
 
+echo "status lists the workloads"
+ENVIRONMENT=kind
+rm -rf "$WORK/state" "$WORK/calls.log"
+run "$ROOT/scripts/status.sh" >/dev/null
+assert_contains "$(grep -E '^kubectl .* get ' "$WORK/calls.log" | head -1)" "get deployments,replicasets,statefulsets,pods -o wide" "make status lists Deployments, ReplicaSets, StatefulSets and pods"
+
 echo "plant chooses at random"
 ENVIRONMENT=kind
 seen=""
