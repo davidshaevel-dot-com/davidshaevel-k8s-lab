@@ -65,7 +65,7 @@ davidshaevel-k8s-lab/
 ├── .bare/                     # Bare git repository
 ├── main/                      # Main branch worktree
 │   ├── README.md              # Quick start, scenario table, honesty line
-│   ├── Makefile               # up, down, kind-up, kind-down, deploy, plant, reveal, heal, status, test, check
+│   ├── Makefile               # up, down, kind-up, kind-down, deploy, plant, reveal, heal, status, clear-events, test, check
 │   ├── app/                   # labapp: Flask + psycopg, Dockerfile, pytest tests
 │   ├── k8s/base/              # Namespace, Deployment, Service, NetworkPolicies, PDB, ResourceQuota
 │   ├── k8s/overlays/{kind,aks}/
