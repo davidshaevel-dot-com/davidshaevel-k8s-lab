@@ -44,7 +44,7 @@ kubectl -n lab logs <new-pod> --previous        # for crashes
   `kubectl -n lab rollout history deploy/web --revision=<n>` shows the new tag.
 - **Fix.** Roll back (`kubectl -n lab rollout undo deploy/web`) or build and push the tag.
 - **Production habit.** Pin images by tag or digest and push before deploy; check the
-  registry (`az acr repository show-tags -n <acr> --repository labapp`).
+  registry (`az acr repository show-tags -n <acr> --repository davidshaevel-k8s-lab/labapp`).
 
 ## Fault: unschedulable (`s3-unschedulable`)
 
