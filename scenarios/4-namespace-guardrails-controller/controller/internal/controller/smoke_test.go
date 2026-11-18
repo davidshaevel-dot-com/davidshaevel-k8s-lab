@@ -32,8 +32,10 @@ func TestSmokeAPIServerAnswers(t *testing.T) {
 }
 
 func TestSmokeManagerIsRunning(t *testing.T) {
-	// The manager's client reads from the manager's cache, which only fills once the
-	// manager has started and its namespace watch is running.
+	// The manager's client reads from the manager's cache, which fills once the manager
+	// has started. This shows the manager and its cache work; it does not show that the
+	// controller's watches started. A watch that cannot start leaves this test green
+	// and shows up as ERROR lines in the log and contract tests that time out.
 	eventually(t, func(g gomega.Gomega) {
 		ns := &corev1.Namespace{}
 		g.Expect(managerClient.Get(context.Background(),

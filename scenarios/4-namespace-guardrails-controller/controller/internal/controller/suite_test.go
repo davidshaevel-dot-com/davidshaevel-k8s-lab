@@ -17,6 +17,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 	"testing"
 	"time"
 
@@ -87,17 +89,38 @@ func runSuite(m *testing.M) int {
 		return 1
 	}
 
-	testEnv := &envtest.Environment{}
+	// Always a local API server and etcd, never the cluster of your kube context, even
+	// with USE_EXISTING_CLUSTER=true in the shell: these tests create namespaces and
+	// run the controller.
+	useExistingCluster := false
+	testEnv := &envtest.Environment{UseExistingCluster: &useExistingCluster}
+	stopEnvtest := func() {
+		if err := testEnv.Stop(); err != nil {
+			fmt.Fprintf(os.Stderr, "stopping envtest: %v\n", err)
+		}
+	}
 	var err error
 	cfg, err = testEnv.Start()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "starting envtest: %v\n", err)
+		// Start can fail after one of the two processes is already running.
+		stopEnvtest()
 		return 1
 	}
-	defer func() {
-		if err := testEnv.Stop(); err != nil {
-			fmt.Fprintf(os.Stderr, "stopping envtest: %v\n", err)
-		}
+	defer stopEnvtest()
+
+	// envtest starts etcd and kube-apiserver in process groups of their own, so a
+	// Ctrl-C in the terminal never reaches them. Stop them when this test binary is
+	// interrupted or terminated. A `go test -timeout` ends the binary in a way it
+	// cannot catch; `make stop-envtest` cleans up after that.
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(signals)
+	go func() {
+		sig := <-signals
+		fmt.Fprintf(os.Stderr, "received %v: stopping envtest\n", sig)
+		stopEnvtest()
+		os.Exit(1)
 	}()
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: clientgoscheme.Scheme})
@@ -106,6 +129,9 @@ func runSuite(m *testing.M) int {
 		return 1
 	}
 
+	// Anything that must exist before the controller first sees its namespace goes
+	// here, before the manager starts: inside a test function, the controller starts on
+	// a new namespace at once and the test would race it.
 	ctx := context.Background()
 	preexisting := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: preexistingNamespace}}
 	if err := k8sClient.Create(ctx, preexisting); err != nil {
@@ -113,6 +139,8 @@ func runSuite(m *testing.M) int {
 		return 1
 	}
 
+	// main.go builds the same manager options and reconciler. A field you add there,
+	// add here too, or the tests run a different configuration from `make run`.
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
 		Scheme:                 clientgoscheme.Scheme,
 		Metrics:                metricsserver.Options{BindAddress: "0"},
@@ -139,10 +167,21 @@ func runSuite(m *testing.M) int {
 		}
 	}()
 
+	// Wait for the cache to sync, unless the manager stops first: then say so at once
+	// instead of waiting out the timeout.
 	syncCtx, cancelSync := context.WithTimeout(ctx, 30*time.Second)
 	defer cancelSync()
-	if !mgr.GetCache().WaitForCacheSync(syncCtx) {
-		fmt.Fprintln(os.Stderr, "the manager's cache did not sync within 30s")
+	synced := make(chan bool, 1)
+	go func() { synced <- mgr.GetCache().WaitForCacheSync(syncCtx) }()
+	select {
+	case ok := <-synced:
+		if !ok {
+			fmt.Fprintln(os.Stderr, "the manager's cache did not sync within 30s")
+			return 1
+		}
+	case err := <-mgrDone:
+		fmt.Fprintf(os.Stderr, "the manager stopped before its cache synced: %v\n", err)
+		mgrDone <- err // hand it back to the deferred cleanup, which reads it again
 		return 1
 	}
 

@@ -5,8 +5,12 @@ package controller
 // Core contract tests: each one encodes one line of the contract written above
 // Reconcile in guardrails.go. They fail until the reconcile logic exists, and they go
 // green as you write it; when all of them pass, the scenario is done. Run them with
-// `make test-contract`; plain `go test ./...` leaves them out (build tag "contract").
+// `make test-contract`; a build without the tag "contract" leaves them out.
 // The optional extension has its own group: contract_optional_test.go.
+//
+// Add new contract tests to this file, with names that start with TestContract:
+// `make test-contract` runs only that prefix, and the helpers below exist only under
+// the "contract" tag.
 //
 // They check only what can be seen in the cluster: which objects exist, with what
 // spec, and whether they keep changing. They do not care how the controller gets
@@ -94,33 +98,63 @@ func TestContractDeletedQuotaComesBack(t *testing.T) {
 // nothing: no new objects, no updates (resourceVersion stays the same)."
 func TestContractReconcileIsIdempotent(t *testing.T) {
 	g := gomega.NewWithT(t)
+	ctx := context.Background()
 	ns := newTestNamespace(t)
 	waitForDefaultDenyPolicy(t, ns)
 	waitForDefaultQuota(t, ns)
 
-	// Give any follow-up reconcile of the creation time to finish before the
-	// resourceVersions are recorded.
+	// Give any follow-up reconcile of the creation time to finish before the state is
+	// recorded.
 	time.Sleep(time.Second)
-	ctx := context.Background()
+	policyKey := client.ObjectKey{Namespace: ns, Name: guardrailPolicyName}
 	policy := &networkingv1.NetworkPolicy{}
-	g.Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: guardrailPolicyName}, policy)).To(gomega.Succeed())
+	g.Expect(k8sClient.Get(ctx, policyKey, policy)).To(gomega.Succeed())
+	quotaKey := client.ObjectKey{Namespace: ns, Name: guardrailQuotaName}
 	quota := &corev1.ResourceQuota{}
-	g.Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: guardrailQuotaName}, quota)).To(gomega.Succeed())
+	g.Expect(k8sClient.Get(ctx, quotaKey, quota)).To(gomega.Succeed())
+	policyCount := countPolicies(g, ns)
+	quotaCount := countQuotas(g, ns)
+
+	// Change the namespace in a way the contract does not care about, so that Reconcile
+	// runs again on a namespace whose guardrails are already correct.
+	namespace := &corev1.Namespace{}
+	g.Expect(k8sClient.Get(ctx, client.ObjectKey{Name: ns}, namespace)).To(gomega.Succeed())
+	unchanged := namespace.DeepCopy()
+	if namespace.Annotations == nil {
+		namespace.Annotations = map[string]string{}
+	}
+	namespace.Annotations["guardrails-test/nudge"] = "1"
+	g.Expect(k8sClient.Patch(ctx, namespace, client.MergeFrom(unchanged))).To(gomega.Succeed())
 
 	consistently(t, func(g gomega.Gomega) {
-		policies := &networkingv1.NetworkPolicyList{}
-		g.Expect(k8sClient.List(ctx, policies, client.InNamespace(ns))).To(gomega.Succeed())
-		g.Expect(policies.Items).To(gomega.HaveLen(1), "exactly one NetworkPolicy in %s", ns)
+		g.Expect(countPolicies(g, ns)).To(gomega.Equal(policyCount),
+			"no NetworkPolicy should be added to or removed from %s", ns)
+		g.Expect(countQuotas(g, ns)).To(gomega.Equal(quotaCount),
+			"no ResourceQuota should be added to or removed from %s", ns)
 
-		quotas := &corev1.ResourceQuotaList{}
-		g.Expect(k8sClient.List(ctx, quotas, client.InNamespace(ns))).To(gomega.Succeed())
-		g.Expect(quotas.Items).To(gomega.HaveLen(1), "exactly one ResourceQuota in %s", ns)
-
-		g.Expect(policies.Items[0].ResourceVersion).To(gomega.Equal(policy.ResourceVersion),
+		current := &networkingv1.NetworkPolicy{}
+		g.Expect(k8sClient.Get(ctx, policyKey, current)).To(gomega.Succeed())
+		g.Expect(current.ResourceVersion).To(gomega.Equal(policy.ResourceVersion),
 			"the NetworkPolicy should not be updated again once it is correct")
-		g.Expect(quotas.Items[0].ResourceVersion).To(gomega.Equal(quota.ResourceVersion),
+		currentQuota := &corev1.ResourceQuota{}
+		g.Expect(k8sClient.Get(ctx, quotaKey, currentQuota)).To(gomega.Succeed())
+		g.Expect(currentQuota.ResourceVersion).To(gomega.Equal(quota.ResourceVersion),
 			"the ResourceQuota should not be updated again once it is correct")
 	}, "the guardrails in %s should stay as they are", ns)
+}
+
+// countPolicies returns the number of NetworkPolicies in namespace ns.
+func countPolicies(g gomega.Gomega, ns string) int {
+	policies := &networkingv1.NetworkPolicyList{}
+	g.Expect(k8sClient.List(context.Background(), policies, client.InNamespace(ns))).To(gomega.Succeed())
+	return len(policies.Items)
+}
+
+// countQuotas returns the number of ResourceQuotas in namespace ns.
+func countQuotas(g gomega.Gomega, ns string) int {
+	quotas := &corev1.ResourceQuotaList{}
+	g.Expect(k8sClient.List(context.Background(), quotas, client.InNamespace(ns))).To(gomega.Succeed())
+	return len(quotas.Items)
 }
 
 // waitForDefaultDenyPolicy waits until namespace ns holds the contract's NetworkPolicy

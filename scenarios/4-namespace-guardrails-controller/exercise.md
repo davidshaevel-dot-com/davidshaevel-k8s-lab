@@ -123,12 +123,12 @@ minute in total. Between the controller's log lines, each failure looks like thi
 
 ```text
 === RUN   TestContractDeletedPolicyComesBack
-    contract_test.go:72:
-        Timed out after 10.004s.
-        the controller should create NetworkPolicy guardrails-test-bxhv8/default-deny as the contract describes
-        The function passed to Eventually failed at .../internal/controller/contract_test.go:134 with:
+    contract_test.go:76:
+        Timed out after 10.001s.
+        the controller should create NetworkPolicy guardrails-test-lpchx/default-deny as the contract describes
+        The function passed to Eventually failed at .../internal/controller/contract_test.go:168 with:
         Expected success, but got an error:
-            <*errors.StatusError | 0x656943b2fe00>:
+            <*errors.StatusError | 0x53556b49c960>:
             networkpolicies.networking.k8s.io "default-deny" not found
 
 --- FAIL: TestContractDeletedPolicyComesBack (10.02s)
@@ -137,16 +137,20 @@ minute in total. Between the controller's log lines, each failure looks like thi
 and the run ends with:
 
 ```text
-FAIL	github.com/davidshaevel-dot-com/davidshaevel-k8s-lab/scenarios/4-namespace-guardrails-controller/controller/internal/controller	63.700s
+FAIL	github.com/davidshaevel-dot-com/davidshaevel-k8s-lab/scenarios/4-namespace-guardrails-controller/controller/internal/controller	63.894s
 FAIL
 make: *** [test-contract] Error 1
 ```
 
 Read the failures as statements about the cluster: "the controller should create
 NetworkPolicy ... as the contract describes", then the reason, here `not found`. The
-first line of each (`contract_test.go:72`) is the line in the test that was waiting.
+first line of each (`contract_test.go:76`) is the line in the test that was waiting.
 A failure that mentions compiling, `KUBEBUILDER_ASSETS` or starting envtest is not one
 of these: it means the setup is broken, so fix that before you go on.
+
+Stopping a run with Ctrl-C is fine: the harness stops the local API server and etcd
+before it exits. If a run ends any other way (a `go test` timeout, a killed terminal),
+they can keep running in the background; `make stop-envtest` stops them.
 
 The six core tests, and the line of the contract each one encodes. When all six
 pass, the scenario is done.
