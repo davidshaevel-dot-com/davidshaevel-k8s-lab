@@ -14,7 +14,8 @@ This scenario is a build, not a diagnosis.
   from its contract, written as comments. You write the logic.
 - **The tests are your target.** The smoke tests pass on the scaffold. The core
   contract tests fail until your logic does what the contract says, and go green as
-  you write it. When they all pass, the scenario is done. A separate group of
+  you write it. The scenario is done when `make test-contract` is fully green,
+  including the tests you add in step 9 for your own decisions. A separate group of
   optional tests covers an extension (restoring a guardrail someone edited by hand)
   for when you have time.
 - **No cluster needed until the last step.** The tests run against envtest: a real
@@ -123,12 +124,12 @@ minute in total. Between the controller's log lines, each failure looks like thi
 
 ```text
 === RUN   TestContractDeletedPolicyComesBack
-    contract_test.go:76:
-        Timed out after 10.001s.
-        the controller should create NetworkPolicy guardrails-test-lpchx/default-deny as the contract describes
-        The function passed to Eventually failed at .../internal/controller/contract_test.go:168 with:
+    contract_test.go:78:
+        Timed out after 10.003s.
+        the controller should create NetworkPolicy guardrails-test-f2mdd/default-deny as the contract describes
+        The function passed to Eventually failed at .../internal/controller/contract_test.go:170 with:
         Expected success, but got an error:
-            <*errors.StatusError | 0x53556b49c960>:
+            <*errors.StatusError | 0x4b52096b0e0>:
             networkpolicies.networking.k8s.io "default-deny" not found
 
 --- FAIL: TestContractDeletedPolicyComesBack (10.02s)
@@ -137,14 +138,14 @@ minute in total. Between the controller's log lines, each failure looks like thi
 and the run ends with:
 
 ```text
-FAIL	github.com/davidshaevel-dot-com/davidshaevel-k8s-lab/scenarios/4-namespace-guardrails-controller/controller/internal/controller	63.894s
+FAIL	github.com/davidshaevel-dot-com/davidshaevel-k8s-lab/scenarios/4-namespace-guardrails-controller/controller/internal/controller	64.045s
 FAIL
 make: *** [test-contract] Error 1
 ```
 
 Read the failures as statements about the cluster: "the controller should create
 NetworkPolicy ... as the contract describes", then the reason, here `not found`. The
-first line of each (`contract_test.go:76`) is the line in the test that was waiting.
+first line of each (`contract_test.go:78`) is the line in the test that was waiting.
 A failure that mentions compiling, `KUBEBUILDER_ASSETS` or starting envtest is not one
 of these: it means the setup is broken, so fix that before you go on.
 
@@ -152,8 +153,9 @@ Stopping a run with Ctrl-C is fine: the harness stops the local API server and e
 before it exits. If a run ends any other way (a `go test` timeout, a killed terminal),
 they can keep running in the background; `make stop-envtest` stops them.
 
-The six core tests, and the line of the contract each one encodes. When all six
-pass, the scenario is done.
+The six core tests, and the line of the contract each one encodes. The scenario is
+done when `make test-contract` is fully green, including the tests you add in step 9
+for your own decisions.
 
 | Test | Contract line |
 |---|---|
@@ -207,7 +209,7 @@ contract your code meets. `make test-smoke` and `make vet` must stay green too.
 
 ### 9. Add tests for your decisions
 
-Add contract tests to `contract_test.go` for the decisions from step 7: a namespace
+This step is part of "done". Add contract tests to `contract_test.go` for the decisions from step 7: a namespace
 your rule skips gets no guardrails, and the case of an existing object with a
 guardrail's name behaves as you decided. Follow the existing tests: assert on what the
 cluster holds, not on how your code got there.
@@ -223,7 +225,7 @@ cluster holds, not on how your code got there.
   there.
 - **Contract lines no test covers.** A namespace that is being deleted, the return
   values, and the RBAC list have no test, and nothing in this exercise runs the
-  controller with less than admin rights. A test for the namespace being deleted is
+  controller with less than admin rights. They are outside "done". A test for the namespace being deleted is
   possible on envtest (a deleted namespace stays in `Terminating` there); the others
   are for reading, not testing.
 

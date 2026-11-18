@@ -37,7 +37,7 @@ test-smoke: ## Smoke tests: pass on the scaffold
 	@assets=$$($(ENVTEST_ASSETS)) && \
 	  KUBEBUILDER_ASSETS="$$assets" go test -count=1 -v -run '^TestSmoke' ./...
 
-test-contract: ## Core contract tests: fail until the reconcile logic exists; green = done
+test-contract: ## Core contract tests, yours from step 9 included: fully green = done
 	@assets=$$($(ENVTEST_ASSETS)) && \
 	  KUBEBUILDER_ASSETS="$$assets" go test -tags contract -count=1 -v -run '^TestContract' ./...
 

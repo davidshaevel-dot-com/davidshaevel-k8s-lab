@@ -4,8 +4,10 @@ package controller
 
 // Core contract tests: each one encodes one line of the contract written above
 // Reconcile in guardrails.go. They fail until the reconcile logic exists, and they go
-// green as you write it; when all of them pass, the scenario is done. Run them with
-// `make test-contract`; a build without the tag "contract" leaves them out.
+// green as you write it. The scenario is done when `make test-contract` is fully
+// green, including the tests you add in step 9 of the exercise for your own
+// decisions. Run them with `make test-contract`; a build without the tag "contract"
+// leaves them out.
 // The optional extension has its own group: contract_optional_test.go.
 //
 // Add new contract tests to this file, with names that start with TestContract:
