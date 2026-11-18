@@ -26,7 +26,8 @@ This scenario is a build, not a diagnosis.
 
 The scaffold (the Go project, `main.go`, the empty `Reconcile` and its contract, the
 `SetupWithManager` stub), the envtest harness, the smoke tests, both groups of
-contract tests (core and optional), the Makefile and this text were built with AI
+contract tests (core and optional), the Makefile, this text,
+[walkthrough.md](walkthrough.md) and [scenario.txt](scenario.txt) were built with AI
 coding agents under David Shaevel's direction. The reconcile logic, the watches it
 needs, the optional extension if he takes it on, the decisions the contract leaves
 open and the tests for those decisions are his.
@@ -55,7 +56,7 @@ The Makefile fetches everything else itself, at pinned versions:
 | `k8s.io/api`, `k8s.io/apimachinery`, `k8s.io/client-go` | v0.36.5 (the lab cluster's version) | Go module cache |
 | `github.com/onsi/gomega` | v1.39.0 | Go module cache |
 | `setup-envtest` | v0.24.1, run with `go run`, never installed | Go module cache |
-| envtest binaries (kube-apiserver, etcd) | Kubernetes 1.36.2 | `controller/bin/k8s/` (gitignored) |
+| envtest binaries (kube-apiserver, etcd, kubectl) | Kubernetes 1.36.2 | `controller/bin/k8s/k8s/1.36.2-<os>-<arch>/` (gitignored) |
 
 These are the versions the scaffold's tests were run with.
 
@@ -102,7 +103,8 @@ error. `make vet` also checks both groups of contract tests, which plain
 make test-smoke
 ```
 
-The first run downloads the envtest binaries to `bin/k8s/`. The tests start a local
+The first run downloads the envtest binaries to a folder under `bin/k8s/`. The tests
+start a local
 API server and etcd, start the controller's manager against them, and check three
 things: the API server answers with version 1.36, the manager is running, and a
 namespace can be created. Expect three `--- PASS` lines and `ok` at the end.
@@ -185,8 +187,8 @@ Write each one down, with your reason, before you write the code:
   not skip namespaces named `guardrails-test-*`, which the tests use.
 - **What to do when an object with a guardrail's name already exists and your
   controller did not create it.** The lab's own namespace `lab` is such a case: it
-  already carries a NetworkPolicy named `default-deny` and a ResourceQuota named
-  `lab-quota`.
+  already carries a NetworkPolicy named `default-deny`. (Its ResourceQuota is named
+  `lab-quota`, so only the policy's name collides.)
 
 ### 8. Write the logic until the core contract tests pass
 
@@ -205,6 +207,21 @@ Add contract tests to `contract_test.go` for the decisions from step 7: a namesp
 your rule skips gets no guardrails, and the case of an existing object with a
 guardrail's name behaves as you decided. Follow the existing tests: assert on what the
 cluster holds, not on how your code got there.
+
+- **Where and how to name them.** Put them in `contract_test.go` and start each name
+  with `TestContract`: `make test-contract` runs only tests with that prefix, and the
+  shared helpers exist only under the `contract` build tag. A test named otherwise, or
+  in an untagged file, never runs (or breaks `make test-smoke`).
+- **Objects that must exist before the controller sees the namespace.** Inside a test
+  function, the controller starts on a namespace the moment the test creates it, so
+  the test races it. The race-free place is the setup in `suite_test.go` that creates
+  `guardrails-test-preexisting` before the manager starts: add what such a test needs
+  there.
+- **Contract lines no test covers.** A namespace that is being deleted, the return
+  values, and the RBAC list have no test, and nothing in this exercise runs the
+  controller with less than admin rights. A test for the namespace being deleted is
+  possible on envtest (a deleted namespace stays in `Terminating` there); the others
+  are for reading, not testing.
 
 ### 10. Optional: restore hand-edited guardrails
 
@@ -228,17 +245,23 @@ whether that includes the cluster's own.
 > **Not on the AKS lab cluster.** It is billable and shared with the other
 > scenarios, and a guardrail in the wrong namespace there breaks scenarios 2 and 3.
 
-Go back to the repo root (you are still in the controller's directory from step 1)
-and create the kind cluster. It holds no app, so no `lab` namespace, until you run
-`make deploy`.
+Go back to the repo root (you are still in the controller's directory from step 1).
+`make kind-up` creates the kind cluster `k8s-lab`, or reuses it if it already exists.
+A cluster left over from scenarios 2 or 3 still holds the lab app in namespace `lab`,
+and the cleanup at the end of this step deletes the whole cluster. If you want a fresh
+one, run `make kind-down` first.
 
 ```bash
 cd ../../..
 make kind-up
+kubectl get namespaces
 ```
 
-`make kind-up` switches your kube context to `kind-k8s-lab`. Terminal one, from the
-controller's directory:
+`make kind-up` switches your kube context to `kind-k8s-lab`. The namespace list is
+what your skip rule will meet: the cluster's own namespaces (kind adds one of its own
+to the usual `kube-*` ones), plus `default`, plus `lab` if the app is deployed.
+
+Terminal one, from the controller's directory:
 
 ```bash
 cd scenarios/4-namespace-guardrails-controller/controller
@@ -246,7 +269,10 @@ make run KUBE_CONTEXT=kind-k8s-lab
 ```
 
 `make run` refuses to start unless `KUBE_CONTEXT` names your current context, so you
-always say which cluster it is about to change. Leave it running and watch its log.
+always say which cluster it is about to change. That check lives in the `make run`
+recipe only: `go run .` and the built binary use your current context without asking,
+and a `KUBE_CONTEXT` exported in your shell satisfies a bare `make run`. Leave it
+running and watch its log.
 
 Terminal two:
 
@@ -266,9 +292,12 @@ kubectl -n guardrails-demo delete networkpolicy default-deny
 ```
 
 In terminal two, a `DELETED` line is followed within a second or two by an `ADDED`
-line for a new `default-deny`. Do the
-same with `kubectl -n guardrails-demo delete resourcequota default-quota`. In terminal
-one, find the log lines of the reconciles your deletes caused.
+line for a new `default-deny`. Then do the same for the quota: in terminal two, stop
+the watch with Ctrl-C and start it again for `resourcequota`
+(`kubectl -n guardrails-demo get resourcequota --watch --output-watch-events`), and in
+terminal three run `kubectl -n guardrails-demo delete resourcequota default-quota`. If
+your logic logs, find in terminal one the lines of the reconciles your deletes caused;
+the scaffold itself logs nothing per reconcile.
 
 Then check your skip rule:
 

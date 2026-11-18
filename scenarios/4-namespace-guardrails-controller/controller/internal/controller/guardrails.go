@@ -57,12 +57,15 @@ type GuardrailsReconciler struct {
 // create it
 //   - Your decision: take it over, leave it alone, or report it. The lab's own
 //     namespace "lab" is such a case: it already carries a NetworkPolicy named
-//     "default-deny" and a ResourceQuota named "lab-quota". Write down what the
-//     controller does and why, and add a test for it.
+//     "default-deny". (Its ResourceQuota is named "lab-quota", so only the policy's
+//     name collides.) Write down what the controller does and why, and add a test
+//     for it.
 //
 // Which namespaces it skips
 //   - Your decision. Some namespaces belong to the cluster itself (kube-system,
-//     kube-public, kube-node-lease, and on a managed cluster, the provider's own).
+//     kube-public, kube-node-lease, and whatever the distribution adds: a managed
+//     cluster's provider namespaces, and on kind one of its own; list them with
+//     kubectl get namespaces).
 //     A default-deny policy there can cut pods off from DNS and from the API server.
 //     Choose the rule, write down why, and add a test for it.
 //   - Whatever the rule, it must not skip namespaces whose names start with
@@ -86,10 +89,10 @@ type GuardrailsReconciler struct {
 // RBAC the logic will need, cluster-wide (a ClusterRole, once the controller runs in
 // a cluster; `make run` uses the permissions of your own kube context)
 //   - namespaces: get, list, watch
-//   - networkpolicies (API group networking.k8s.io): get, list, watch, create, update,
-//     patch; delete only if your logic deletes
-//   - resourcequotas (core API group): get, list, watch, create, update, patch;
-//     delete only if your logic deletes
+//   - networkpolicies (API group networking.k8s.io): get, list, watch, and whichever
+//     of create, update, patch and delete your logic uses
+//   - resourcequotas (core API group): get, list, watch, and whichever of create,
+//     update, patch and delete your logic uses
 //   - events: create, patch; only if you record events
 func (r *GuardrailsReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	// Yours to write: see the contract above and ../../../exercise.md.
