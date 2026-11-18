@@ -43,20 +43,17 @@ already right must change nothing. That is idempotency, and
 `resourceVersion`: every write the API server accepts bumps it, so a value that stays
 the same means nothing was written.
 
-Two broad ways to write desired state:
+There are two broad ways to write desired state to the API server, each with its own
+failure mode:
 
-- **Read, compare, write.** Read the current object, create it if missing, update it
-  if it differs, do nothing if it matches. The API server skips an update that changes
-  nothing, so the `resourceVersion` stays put, but only if your comparison and your
-  desired object agree with what the server stores. Fields the server fills in with
-  defaults are the usual trap: a desired object that leaves them out can look
-  "different" on every pass.
-- **Server-side apply.** Send the fields you own and let the API server merge them,
-  tracking which manager owns which field. The server works out whether anything
-  changed.
+- **Read, compare, write.** The controller decides what to send from what it reads.
+  Its failure mode is an update loop: a controller that writes on every pass, so the
+  `resourceVersion` never settles.
+- **Server-side apply.** The API server merges what the controller sends and tracks
+  which manager owns which field. Its failure mode is a field ownership conflict with
+  another manager.
 
-Either can meet the contract. Each has its own failure mode to watch for: an update
-loop with the first, and field ownership conflicts with the second.
+Either can meet the contract.
 
 ## Watches and ownership
 
@@ -69,13 +66,16 @@ To bring a deleted guardrail back, a change to a NetworkPolicy or ResourceQuota 
 lead to a `Reconcile` of its namespace. controller-runtime offers two ways to watch
 other kinds of object:
 
-- **Owned objects.** When an object carries an owner reference to the object being
-  reconciled, the builder's `Owns` watch maps each change to the owner. A
-  namespace-scoped object can name a cluster-scoped owner such as a Namespace. Owner
-  references also feed garbage collection: when the owner is deleted, what it owns
-  goes too.
-- **Mapped watches.** The builder's `Watches` takes any kind of object and a function
-  that turns each change into the names to reconcile. It needs no owner reference.
+- **Owned objects.** An owner reference on an object names another object as its
+  owner. The builder's `Owns` watch maps a change to an owned object back to its
+  owner, but by default only through an owner reference marked as the controller
+  (`controller: true`). Other owner references are ignored unless you ask `Owns` to
+  match every owner. A namespace-scoped object can name a cluster-scoped owner such as
+  a Namespace. Owner references also feed garbage collection: when the owner is
+  deleted, what it owns goes too.
+- **Mapped watches.** The builder's `Watches` takes any kind of object and an event
+  handler that decides which names to reconcile for each change. controller-runtime
+  can build such a handler from a plain function. It needs no owner reference.
 
 The choice changes what the cluster holds (an owner reference or not) and how the
 controller recognises "its" objects. Which you pick also bears on the decision about
@@ -90,14 +90,10 @@ real cost in a large cluster. Informers can be filtered (by label, for example).
 The manager's client reads from its cache, which its informers fill, and writes to
 the API server. Two consequences:
 
-- **Reads can be stale.** Right after a create, the cache may not have the new object
-  yet. A `Reconcile` that runs in that window can decide the object is missing. An
-  attempt to create it again fails with "already exists", which is safe to treat as
-  "someone already did it": the next reconcile sees the object.
+- **Reads can be stale.** Right after a write, the cache may not have caught up yet: a
+  `Reconcile` that runs in that window sees the cluster as it was a moment ago.
 - **Writes can conflict.** An update carries the `resourceVersion` it read. If the
-  object changed in between, the API server refuses it with a conflict. Returning the
-  error retries the whole `Reconcile`, which reads again: level-triggered behaviour
-  handles it.
+  object changed in between, the API server refuses it with a conflict.
 
 The tests read through their own client, with no cache, so they always see the API
 server's current state.
@@ -117,9 +113,10 @@ What `Reconcile` returns decides what happens next:
   (`reconcile.TerminalError`). A namespace being deleted is a case of "nothing to do",
   not an error at all.
 
-Also, every controller-runtime manager re-lists everything it watches periodically
-(the sync period, hours by default), so even a controller with a missing watch
-eventually corrects drift. "Eventually" is far too slow for the tests, which wait 10
+Also, every controller-runtime manager's cache periodically hands every object it holds
+to the controllers again (the sync period, 10 hours by default). It does not re-read
+the API server; it replays what the cache already has. So even a controller with a
+missing watch eventually reconciles each namespace again. "Eventually" is far too slow for the tests, which wait 10
 seconds, and for anyone deleting guardrails by hand.
 
 ## RBAC
@@ -144,11 +141,8 @@ generator, so the list is written out by hand.
 The contract's quota limits object counts only: pods, services, persistent volume
 claims, config maps and secrets. It sets no `requests.cpu` or `requests.memory`.
 
-That is deliberate. Once a namespace has a quota on a compute resource, the API server
-rejects every new pod that does not declare that resource, unless a LimitRange in the
-namespace fills in a default. A controller that put a compute quota into every
-namespace would make every pod without requests fail to start, in every namespace it
-touches, the moment it ran. Counting objects guards against runaway creation without
+That is deliberate: a compute quota changes what pods may run in every namespace it
+lands in, which is too much for a controller to impose on all of them. Counting objects guards against runaway creation without
 that side effect. A real platform would pair compute quotas with LimitRanges, or set
 quotas per team.
 
@@ -174,8 +168,10 @@ level-triggered controller, which reaches the right state soon, without promisin
 when.
 
 The groups of tests are separate. The smoke tests prove the harness works. The core
-contract tests sit behind a build tag (`//go:build contract`) so that plain
-`go test ./...` stays green on the scaffold, and `make test-contract` turns them on.
+contract tests sit behind a build tag (`//go:build contract`), so a build without
+that tag leaves them out, and `make test-contract` turns them on. Run every group
+through `make`: plain `go test ./...` stops at once with a message asking for
+`KUBEBUILDER_ASSETS`, which the Makefile sets.
 The optional tests need a second tag as well (`contract_optional`), so the core group
 can go fully green without them; `make test-contract-optional` runs them.
 
