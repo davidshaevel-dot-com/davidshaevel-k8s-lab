@@ -104,7 +104,7 @@ resource "azurerm_role_assignment" "operator_cluster_user" {
 }
 
 resource "azurerm_container_registry" "lab" {
-  name                = "${replace(var.prefix, "-", "")}${random_string.suffix.result}"
+  name                = var.acr_name
   location            = azurerm_resource_group.lab.location
   resource_group_name = azurerm_resource_group.lab.name
   sku                 = "Basic"

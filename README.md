@@ -34,6 +34,52 @@ The AKS path also needs an Azure role that can create role assignments on the
 subscription (Owner, or Contributor plus User Access Administrator): Terraform grants
 the cluster identities and you their roles.
 
+## Two ways to run the lab: kind and AKS
+
+[kind](https://kind.sigs.k8s.io/) ("Kubernetes in Docker") is a tool from the Kubernetes
+project that runs a whole cluster on one machine, with each node as a Docker container.
+It was made for testing Kubernetes itself and for local development. It is free and
+needs only Docker.
+
+How this lab uses it:
+
+- **The cluster.** `make kind-up` checks that Docker is running, then creates a cluster
+  named `k8s-lab` from `kind/cluster.yaml`: one control-plane node and one worker. It
+  waits up to two minutes for the nodes, switches `kubectl` to the context
+  `kind-k8s-lab`, and lists the nodes. If the cluster already exists, it leaves it as it
+  is. kind's default network plugin, kindnet, enforces NetworkPolicy, so the app's
+  policies apply here as they do on AKS.
+- **The image.** `make deploy` builds `labapp:0.1.0` with your local Docker and copies it
+  into the nodes with `kind load docker-image`. No registry is involved.
+- **The database.** PostgreSQL 17 runs inside the cluster as a StatefulSet in the
+  namespace `lab`, under the same Service name, `postgres`, that the app uses on AKS.
+- **Cleanup.** `make kind-down` deletes the cluster and the lab's local records for it.
+- **Tests.** The repo's end-to-end test (`tests/e2e-kind.sh`) runs on a kind cluster.
+
+What each path gives you:
+
+| | kind (Path A) | AKS (Path B) |
+|---|---|---|
+| Where it runs | Docker on your machine; free | Azure, East US; billable while it is up |
+| Control plane | a container on your machine | managed by Azure |
+| Nodes | one control-plane and one worker container | a system node pool and an autoscaled user node pool |
+| Network | kindnet, inside Docker | a virtual network with network security groups; Azure CNI Overlay with Cilium |
+| Database | PostgreSQL in the cluster | Azure Database for PostgreSQL behind a private endpoint, with private DNS |
+| Image | built locally, loaded into the nodes | built in Azure Container Registry, pulled with the kubelet's managed identity |
+| Sign-in | the admin kubeconfig kind writes | Entra ID with Azure RBAC, from authorized IP ranges only |
+| Scenarios | 2 (five of its six faults) and 3 | 1, 2, 3 and 5 |
+
+Scenario 4, a controller you write, runs anywhere (see the [scenario table](#scenarios)).
+
+kind has no managed control plane, node pools, cluster autoscaler, private endpoint,
+virtual network, network security group, Entra ID sign-in, managed identities or
+container registry. That is why scenario 1 (an AKS upgrade) and scenario 5 (the cluster
+autoscaler) need AKS. It is also why one of scenario 2's six faults, the Azure network
+security group, is skipped on kind, so scenario 2 picks from the other five there.
+
+The practice transfers: Deployments, Services, NetworkPolicies, probes, quotas and the
+other Kubernetes API objects behave the same on both.
+
 ## Quick start
 
 Pick one path. Each runs top to bottom, in order.
@@ -47,16 +93,17 @@ make test                 # optional: unit tests and fault-machinery tests, no c
 make kind-up              # one control-plane node + one worker, in Docker
 make deploy               # builds the app image, loads it into kind, deploys app + PostgreSQL
 make status               # should end with HEALTHY
+                          # first time: do the warm-up now (see "Start with the warm-up"); it plants nothing
 make plant SCENARIO=3     # plants one random fault; start your timer and work it
 make reveal               # only after you have written down your diagnosis
 make heal                 # restores the healthy state
 make status               # HEALTHY again
+make clear-events         # optional: clears the namespace's events before the next run
 make kind-down            # when you are done
 ```
 
-On `kind`, PostgreSQL runs inside the cluster. One of scenario 2's six faults (the Azure
-network security group) needs Azure networking and is skipped there; scenario 2 picks from
-the other five. Scenarios 1 and 5 need AKS.
+What runs on `kind`, and what needs AKS: see
+[Two ways to run the lab](#two-ways-to-run-the-lab-kind-and-aks).
 
 ### Path B: AKS lab cluster (all scenarios)
 
@@ -74,10 +121,12 @@ cp terraform/terraform.tfvars.example terraform/terraform.tfvars
 make up                   # terraform apply: type "yes" at the prompt (about 10-15 minutes)
 make deploy               # builds the image in Azure Container Registry, deploys, creates the DB role
 make status               # should end with HEALTHY
+                          # first time: do the warm-up now (see "Start with the warm-up"); it plants nothing
 make plant SCENARIO=2     # work it, write the cause down, then:
 make reveal
 make heal
 make status
+make clear-events         # optional: clears the namespace's events before the next run
 make down                 # terraform destroy (type "yes"), at the end of the day
 ```
 
@@ -85,7 +134,19 @@ make down                 # terraform destroy (type "yes"), at the end of the da
 `ARM_CLIENT_SECRET` for a service principal, the lab ignores them on purpose: the
 cluster-admin role assignment goes to whoever runs `apply`, and that must be you.
 
+## Start with the warm-up
+
+Once `make status` ends with `HEALTHY`, do the warm-up before any scenario:
+[trace a healthy rollout](scenarios/0-warm-up-trace-a-rollout/exercise.md). You restart
+the `web` Deployment yourself and follow the rollout from the change you submit to new
+pods behind the Service, so you know what normal looks like and which part of Kubernetes
+does each step. It plants nothing and works on both kind and AKS. Its walkthrough is
+listed under "Review after your attempt".
+
 ## Challenge first, time yourself, then review
+
+This routine is for the numbered scenarios. The warm-up skips it: it plants nothing and
+has no timer and no `make reveal`. `make plant` is only for scenarios 2 and 3.
 
 1. Run `make plant SCENARIO=<n>`. It prints the alert, nothing else. Start a timer.
 2. Diagnose from the cluster: `kubectl get`, `describe`, `logs`, `events`, `exec`, the
@@ -94,14 +155,21 @@ cluster-admin role assignment goes to whoever runs `apply`, and that must be you
    - `.lab/state`, `.lab/last-plant.log` and `.lab/last-heal.log`;
    - the shell tests in `tests/` (`*.sh`), which test the lab's own machinery;
    - diffing the live objects against this repo's manifests (`kubectl diff -k ...`);
-   - `kubectl get --show-managed-fields`, which shows which tool changed which field.
+   - `kubectl get --show-managed-fields`, which shows which tool changed which field;
+   - the Azure portal's YAML and JSON views of objects in the lab, which show the same
+     managed fields, and the portal's Copilot helpers (the "Troubleshoot" button, "Ask
+     Copilot" and the YAML page's help prompts), which do the diagnosing for you. The
+     portal's Overview, Pods, Replica sets, Events and Network policies pages remain fine.
 
    The passwords in `.lab/*-password` are fair game: they stand in for a secret store.
 3. Fix it the way you would in production. (`make heal` is the reset button, not the fix.)
 4. Write the cause down, stop the timer, then run `make reveal`.
 5. Copy `runs/TEMPLATE.md` to `runs/YYYY-MM-DD-s<n>-<short-name>.md` and fill it in.
 6. Read the walkthrough (below) and compare.
-7. `make heal`, `make status`, and go again: each plant is a fresh draw.
+7. `make heal`, `make status`, and go again: each plant is a fresh draw. Optionally run
+   `make clear-events` first: events stay in the namespace for about an hour, and the last
+   run's would mix into the next run's `describe` output and event lists. This is a lab
+   convenience: on a real cluster, events are evidence and are left alone.
 
 ### When something is off
 
@@ -112,6 +180,14 @@ cluster-admin role assignment goes to whoever runs `apply`, and that must be you
 - **Plant or heal failed.** Their output goes to `.lab/last-plant.log` and
   `.lab/last-heal.log`, base64-encoded so it cannot spoil a run; read them after
   `make reveal` (or when you give up) with `base64 -d < .lab/last-plant.log`.
+- **`make down` stops at the node pool.** Terraform fails deleting the `user` node pool
+  with `KubernetesAPICallFailed`: draining the node would evict a `web` pod against its
+  disruption budget. It ends with `polling after Delete: context deadline exceeded`.
+  `make down` removes the `lab` namespace first so this should be rare; if it happens,
+  delete the pool without the budget check, then run `make down` again:
+  `az aks nodepool delete --resource-group k8s-lab-rg --cluster-name k8s-lab-aks --name user --ignore-pdb`.
+  The names come from the default prefix `k8s-lab`; use yours if you changed it, and add
+  `--subscription <your subscription id>` if your `az` default is another subscription.
 - **Database as admin.** `scripts/db-admin.sh "<SQL>"` runs one statement as the
   database admin and prints the result: on `kind`, with `psql` in the PostgreSQL pod; on
   AKS, from inside a web pod, the only place the private endpoint is reachable, with the
@@ -121,6 +197,7 @@ cluster-admin role assignment goes to whoever runs `apply`, and that must be you
 
 | # | Scenario | Root-cause family | Key skills | Runs on |
 |---|---|---|---|---|
+| 0 | [Warm-up: trace a healthy rollout](scenarios/0-warm-up-trace-a-rollout/exercise.md) | None: nothing is planted | `rollout restart`, `rollout status`, events, ReplicaSets, `describe pod`, EndpointSlices | AKS, kind |
 | 1 | AKS upgrade | Version skew, deprecated APIs, disruption budgets | `az aks get-upgrades`, surge settings, PDBs, control plane then node pools, runbook + recovery plan | AKS |
 | 2 | The app can't reach its database | Networking and access: name resolution, Services and endpoints, NetworkPolicy, network security groups, credentials and ports, database-side access rules | CoreDNS, EndpointSlices, Cilium policy, NSG rules, Secrets, PostgreSQL errors | AKS (6 faults), kind (5) |
 | 3 | The deployment never becomes ready | The rollout path: images, scheduling, probes, configuration, quotas, startup crashes | `rollout status`, ReplicaSets, events, `describe pod`, `logs --previous`, ResourceQuota | AKS, kind |
@@ -140,8 +217,10 @@ kind/           kind cluster config
 terraform/      the AKS lab cluster and everything around it
 scripts/        what the Makefile targets run
 faults/         the planted faults (spoilers)
-scenarios/      one folder per scenario: scenario.txt (the alert) and walkthrough.md
-runs/           run logs, one per attempt
+docs/           reference pages: kubectl and the Azure portal, side by side
+scenarios/      one folder per scenario: scenario.txt (the alert) and walkthrough.md;
+                the warm-up (0) has exercise.md in place of scenario.txt
+runs/           run logs, one per attempt, and their templates
 tests/          shell tests for the fault machinery, and the kind end-to-end run
 ```
 
@@ -171,8 +250,20 @@ What the app is and how it runs: [app/README.md](app/README.md).
   (`linux/amd64`, pushed with `az acr login`) instead, and tells you to start Docker
   Desktop if it is not running. `LAB_IMAGE_BUILD=local make deploy` skips straight to the
   local build.
+- **Names.** The registry is `k8sdevlabacr` and the PostgreSQL server `k8s-lab-pg`. Both
+  names are unique across all of Azure, and these are taken by this lab, so if you run it
+  in your own subscription, set `acr_name` and `postgres_server_name` in
+  `terraform.tfvars` (the example file shows both). On AKS the image is
+  `<registry>.azurecr.io/davidshaevel-k8s-lab/labapp:0.1.0`.
+- **Changing those names on a running lab.** A new registry or server name replaces that
+  resource, so never apply the change over a running lab. Run `make down` before you pull
+  it, then `make up` and `make deploy` after. (The names changed once, from a random
+  suffix to the ones above.)
 - **State.** Terraform state is local and gitignored. It holds the database admin
   password; never commit it.
+
+Where each Kubernetes object and Azure resource of the lab shows up in the Azure portal,
+next to the `kubectl` or `az` command that shows it: [docs/azure-portal.md](docs/azure-portal.md).
 
 ### Access: the break-glass route
 
@@ -210,6 +301,8 @@ with `make down`.
 
 Spoilers. Open these only after you have written down your diagnosis.
 
+- [Warm-up walkthrough](scenarios/0-warm-up-trace-a-rollout/walkthrough.md) (after the
+  warm-up; it holds no scenario spoilers)
 - [Scenario 1 walkthrough](scenarios/1-aks-upgrade/walkthrough.md)
 - [Scenario 2 walkthrough](scenarios/2-app-cannot-reach-database/walkthrough.md)
 - [Scenario 3 walkthrough](scenarios/3-deployment-never-ready/walkthrough.md)

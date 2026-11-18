@@ -123,8 +123,94 @@ run "$ROOT/scripts/deploy.sh" --apply-only >/dev/null
 grep -q 'apply.*-k' "$WORK/calls.log" && fail "deploy applies nothing when terraform output fails" || pass "deploy applies nothing when terraform output fails"
 cp "$WORK/terraform.ok" "$WORK/bin/terraform"
 
+echo "resource names"
+block() { sed -n "/^$1 \"$2\"/,/^}/p" "$ROOT/terraform/$3"; } # kind name file
+assert_contains "$(block variable acr_name variables.tf)" 'default     = "k8sdevlabacr"' "registry name defaults to k8sdevlabacr"
+assert_contains "$(block variable postgres_server_name variables.tf)" 'default     = "k8s-lab-pg"' "PostgreSQL server name defaults to k8s-lab-pg"
+assert_contains "$(block resource azurerm_container_registry aks.tf)" "name                = var.acr_name" "the registry takes its name from var.acr_name"
+assert_contains "$(block resource azurerm_postgresql_flexible_server postgres.tf)" "name                          = var.postgres_server_name" "the server takes its name from var.postgres_server_name"
+assert_eq "" "$(grep -l random_string "$ROOT"/terraform/*.tf || true)" "no random suffix in resource names"
+cp "$WORK/bin/terraform" "$WORK/terraform.ok"
+cat > "$WORK/bin/terraform" <<'STUB'
+#!/usr/bin/env bash
+echo "terraform $*" >> "$(dirname "$0")/../calls.log"
+case "$*" in
+  *"output -raw acr_name"*) printf k8sdevlabacr ;;
+  *"output -raw acr_login_server"*) printf k8sdevlabacr.azurecr.io ;;
+  *"output -raw postgres_private_ip"*) printf 10.100.8.4 ;;
+  *"output -raw private_endpoint_subnet_cidr"*) printf 10.100.8.0/24 ;;
+  *output*) printf placeholder ;;
+esac
+STUB
+ENVIRONMENT=aks
+rm -rf "$WORK/state" "$WORK/calls.log"
+run "$ROOT/scripts/deploy.sh" >/dev/null
+assert_contains "$(cat "$WORK/calls.log")" "az acr build --registry k8sdevlabacr --image davidshaevel-k8s-lab/labapp:0.1.0" "AKS builds davidshaevel-k8s-lab/labapp:0.1.0 in k8sdevlabacr"
+assert_contains "$(cat "$WORK/state/overlay/kustomization.yaml" 2>/dev/null)" "newName: k8sdevlabacr.azurecr.io/davidshaevel-k8s-lab/labapp" "AKS deploys k8sdevlabacr.azurecr.io/davidshaevel-k8s-lab/labapp"
+ENVIRONMENT=kind
+rm -rf "$WORK/state" "$WORK/calls.log"
+run "$ROOT/scripts/deploy.sh" >/dev/null
+assert_contains "$(cat "$WORK/calls.log")" "docker build -q -t labapp:0.1.0" "kind keeps the local image labapp:0.1.0"
+assert_not_contains "$(cat "$WORK/state/overlay/kustomization.yaml" 2>/dev/null)" "newName" "kind deploys the local image unchanged"
+cp "$WORK/terraform.ok" "$WORK/bin/terraform"
+
 echo "revision history"
 assert_contains "$(cat "$ROOT/k8s/base/deployment.yaml")" "revisionHistoryLimit: 0" "old ReplicaSets (earlier faults) are not kept"
+
+echo "status lists the workloads"
+ENVIRONMENT=kind
+rm -rf "$WORK/state" "$WORK/calls.log"
+run "$ROOT/scripts/status.sh" >/dev/null
+assert_contains "$(grep -E '^kubectl .* get ' "$WORK/calls.log" | head -1)" "get deployments,replicasets,statefulsets,pods -o wide" "make status lists Deployments, ReplicaSets, StatefulSets and pods"
+
+echo "clear-events"
+for ENVIRONMENT in kind aks; do
+  case $ENVIRONMENT in kind) ctx="kind-${KIND_CLUSTER_NAME:-k8s-lab}" ;; aks) ctx=k8s-lab-aks ;; esac
+  rm -rf "$WORK/state" "$WORK/calls.log"
+  out=$(run "$ROOT/scripts/clear-events.sh")
+  assert_eq 0 "$?" "clear-events exits 0 (env=$ENVIRONMENT)"
+  assert_eq "kubectl --context $ctx -n lab delete events --all" "$(cat "$WORK/calls.log" 2>/dev/null)" "clear-events deletes only the events, in the lab namespace and context (env=$ENVIRONMENT)"
+  assert_contains "$out" "namespace lab (context $ctx)" "clear-events says what it cleared and where (env=$ENVIRONMENT)"
+done
+assert_contains "$(make -s -C "$ROOT" help)" "clear-events" "make help lists clear-events"
+assert_eq "" "$(grep -l clear-events "$ROOT"/scripts/{heal,plant,deploy,status}.sh)" "no other target clears events"
+
+echo "make down removes the app first"
+ENVIRONMENT=kind # on purpose: down must still name the AKS context, never the current one
+line_of() { grep -n -E "$1" "$WORK/calls.log" | head -1 | cut -d: -f1; }
+rm -rf "$WORK/state" "$WORK/calls.log"
+run "$ROOT/scripts/down.sh" >/dev/null
+assert_eq 0 "$?" "down exits 0"
+ns_line=$(line_of '^kubectl --context k8s-lab-aks delete namespace lab ')
+destroy_line=$(line_of '^terraform .* destroy -input=false')
+if [ -n "$ns_line" ] && [ -n "$destroy_line" ] && [ "$ns_line" -lt "$destroy_line" ]; then
+  pass "down deletes the lab namespace on the AKS context before terraform destroy"
+else
+  fail "down deletes the lab namespace on the AKS context before terraform destroy" "$(cat "$WORK/calls.log")"
+fi
+assert_contains "$(grep -E ' delete namespace ' "$WORK/calls.log")" "--timeout=180s --request-timeout=20s" "down bounds the namespace delete"
+
+cp "$WORK/bin/kubectl" "$WORK/kubectl.ok"
+# The context exists, but the delete fails (refused, unreachable or timed out).
+printf '#!/usr/bin/env bash\necho "kubectl $*" >> "%s/calls.log"\ncase "$*" in "config get-contexts"*) exit 0 ;; esac\necho "noise from an earlier line" >&2\necho "error: the server is not reachable" >&2\nexit 1\n' "$WORK" > "$WORK/bin/kubectl"
+rm -rf "$WORK/state" "$WORK/calls.log"
+out=$(run "$ROOT/scripts/down.sh")
+assert_eq 0 "$?" "down exits 0 when the namespace delete fails"
+assert_contains "$(cat "$WORK/calls.log")" "delete namespace lab" "down tries the namespace delete when the AKS context exists"
+assert_contains "$(cat "$WORK/calls.log")" "destroy -input=false" "down still reaches terraform destroy when the namespace delete fails"
+assert_contains "$out" "warning: could not remove the lab namespace" "down warns when it cannot remove the namespace"
+assert_contains "$out" "failed or timed out" "the warning says the delete failed or timed out"
+assert_contains "$(grep '^warning:' <<<"$out")" "error: the server is not reachable" "the warning carries kubectl's last error line"
+assert_not_contains "$out" "noise from an earlier line" "the warning carries only kubectl's last line"
+
+printf '#!/usr/bin/env bash\necho "kubectl $*" >> "%s/calls.log"\ncase "$*" in "config get-contexts"*) exit 1 ;; esac\nexit 0\n' "$WORK" > "$WORK/bin/kubectl"
+rm -rf "$WORK/state" "$WORK/calls.log"
+out=$(run "$ROOT/scripts/down.sh")
+assert_eq 0 "$?" "down exits 0 when there is no AKS context"
+assert_contains "$out" "no k8s-lab-aks context in your kubeconfig" "the warning says there is no AKS context"
+assert_not_contains "$(cat "$WORK/calls.log")" "delete namespace" "down deletes nothing when there is no AKS context"
+assert_contains "$(cat "$WORK/calls.log")" "destroy -input=false" "down still reaches terraform destroy when there is no AKS context"
+cp "$WORK/kubectl.ok" "$WORK/bin/kubectl"
 
 echo "plant chooses at random"
 ENVIRONMENT=kind

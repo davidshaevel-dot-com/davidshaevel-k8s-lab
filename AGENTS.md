@@ -27,8 +27,8 @@ local `kind` cluster for the troubleshooting scenarios) and writes the run logs.
 - **Walkthroughs are spoilers.** The README links them only under the "Review after your
   attempt" heading. Never quote a walkthrough, a fault id or a fault description in
   README text above that heading, in `scenario.txt`, or in anything `make plant` prints.
-- **Run logs in `runs/` are David's.** Agents never write or edit a run log (the template
-  is the exception).
+- **Run logs in `runs/` are David's.** Agents never write or edit a run log (the templates,
+  `TEMPLATE*.md`, are the exception).
 
 ---
 
@@ -65,7 +65,7 @@ davidshaevel-k8s-lab/
 ├── .bare/                     # Bare git repository
 ├── main/                      # Main branch worktree
 │   ├── README.md              # Quick start, scenario table, honesty line
-│   ├── Makefile               # up, down, kind-up, kind-down, deploy, plant, reveal, heal, status, test, check
+│   ├── Makefile               # up, down, kind-up, kind-down, deploy, plant, reveal, heal, status, clear-events, test, check
 │   ├── app/                   # labapp: Flask + psycopg, Dockerfile, pytest tests
 │   ├── k8s/base/              # Namespace, Deployment, Service, NetworkPolicies, PDB, ResourceQuota
 │   ├── k8s/overlays/{kind,aks}/
@@ -73,8 +73,10 @@ davidshaevel-k8s-lab/
 │   ├── terraform/             # AKS lab cluster, VNet, NSGs, PostgreSQL + private endpoint, ACR
 │   ├── scripts/               # Bash behind the Makefile targets (lib.sh holds shared helpers)
 │   ├── faults/                # One file per planted fault: plant/heal/supports functions
+│   ├── docs/                  # Reference pages (azure-portal.md: kubectl and the portal side by side)
 │   ├── scenarios/<n>-<name>/  # scenario.txt (alert) + walkthrough.md (read after the attempt)
-│   ├── runs/                  # David's run logs + TEMPLATE.md
+│   │                          # 0-warm-up-…: exercise.md in place of scenario.txt, plants nothing
+│   ├── runs/                  # David's run logs + TEMPLATE.md, TEMPLATE-warm-up.md
 │   └── tests/                 # Shell tests for the fault machinery
 └── <feature-worktrees>/       # Flat
 ```

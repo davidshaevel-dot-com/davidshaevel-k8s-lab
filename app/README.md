@@ -141,14 +141,16 @@ cluster (`kind-k8s-lab` or `k8s-lab-aks`). It does these steps in order:
    - On kind: `docker build -t labapp:0.1.0 app`, then
      `kind load docker-image --name k8s-lab labapp:0.1.0`, so the nodes have the image
      without a registry.
-   - On AKS: `az acr build` builds and stores the image in the lab's Azure Container
-     Registry, with no local Docker needed. If ACR Tasks is not available on the
+   - On AKS: `az acr build` builds the image and stores it in the lab's Azure Container
+     Registry as `davidshaevel-k8s-lab/labapp:0.1.0`
+     (`k8sdevlabacr.azurecr.io/davidshaevel-k8s-lab/labapp:0.1.0` with the default
+     registry name), with no local Docker needed. If ACR Tasks is not available on the
      subscription, it falls back to a local `docker buildx build --platform linux/amd64`
      and pushes the image after `az acr login`. `LAB_IMAGE_BUILD=local make deploy` goes
      straight to the local build.
 2. **Writes a generated kustomize overlay** (gitignored) on top of `k8s/overlays/kind` or
    `k8s/overlays/aks`. On AKS it fills in three values from Terraform output:
-   - the image name in the registry;
+   - the image's full name in the registry (`<registry>.azurecr.io/davidshaevel-k8s-lab/labapp`);
    - the private endpoint's IP in the EndpointSlice `postgres-1`;
    - the private-endpoint subnet in the NetworkPolicy `db-egress`.
 3. **Applies the namespace** `lab` with server-side apply.
@@ -189,7 +191,8 @@ The Deployment `web`:
 - **Replicas and rollout:** 2 replicas; `RollingUpdate` with `maxSurge: 1` and
   `maxUnavailable: 0`; `progressDeadlineSeconds: 120`; `revisionHistoryLimit: 0`.
 - **Pod labels:** `app.kubernetes.io/name: web` and `lab.davidshaevel.com/db-client: "true"`.
-- **Container:** `web`, image `labapp:0.1.0` (the registry copy on AKS), port 8080 named
+- **Container:** `web`, image `labapp:0.1.0` on kind and
+  `<registry>.azurecr.io/davidshaevel-k8s-lab/labapp:0.1.0` on AKS, port 8080 named
   `http`.
 - **Resources:** requests 50m CPU and 96Mi memory; memory limit 256Mi; no CPU limit.
 - **Probes:** liveness `GET /healthz` every 10s, failing after 3 misses; readiness
@@ -208,8 +211,8 @@ the lab cluster.
 make status
 ```
 
-`make status` lists the Deployments, StatefulSets and pods in `lab`, then runs four
-checks:
+`make status` lists the Deployments, ReplicaSets, StatefulSets and pods in `lab`, then runs
+four checks:
 
 1. the `web` rollout is complete;
 2. the Service `web` has ready endpoints;

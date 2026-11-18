@@ -4,7 +4,7 @@
 
 env_name=$(lab_env)
 echo "Environment: $env_name (context $(lab_context))"
-k get deployments,statefulsets,pods -o wide 2>/dev/null || die "cannot reach the lab cluster"
+k get deployments,replicasets,statefulsets,pods -o wide 2>/dev/null || die "cannot reach the lab cluster"
 echo
 
 failures=0
