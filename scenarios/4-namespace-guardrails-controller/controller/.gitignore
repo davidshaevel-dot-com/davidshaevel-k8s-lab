@@ -1,0 +1,2 @@
+# The built controller and the envtest binaries (make build, make envtest)
+bin/

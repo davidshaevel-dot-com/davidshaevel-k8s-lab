@@ -9,7 +9,8 @@ local `kind` cluster for the troubleshooting scenarios) and writes the run logs.
 **Key Technologies:**
 - **Infrastructure:** Terraform (azurerm), Kubernetes, kustomize, kind
 - **Cloud:** Azure (AKS, PostgreSQL Flexible Server, ACR, private endpoints)
-- **Languages:** Python (the lab app), Bash (lab scripts, fault scripts), HCL
+- **Languages:** Python (the lab app), Bash (lab scripts, fault scripts), HCL, Go (the
+  scenario 4 controller scaffold and its tests)
 
 **Project Management:**
 - **Issue Tracking:** Linear
@@ -27,6 +28,14 @@ local `kind` cluster for the troubleshooting scenarios) and writes the run logs.
 - **Walkthroughs are spoilers.** The README links them only under the "Review after your
   attempt" heading. Never quote a walkthrough, a fault id or a fault description in
   README text above that heading, in `scenario.txt`, or in anything `make plant` prints.
+  Scenario 4's walkthrough is the exception: it explains concepts, holds no solution and
+  is meant to be read first, so it must never describe the controller's logic.
+- **Scenario 4's controller logic is David's.** In
+  `scenarios/4-namespace-guardrails-controller/controller/`, agents never write or edit
+  the body of `Reconcile`, the guardrail watches in `SetupWithManager`, or the tests for
+  the decisions the contract leaves open, and never describe that logic in prose,
+  comments, commit messages or PR text. A request to make the contract tests pass is not
+  a request to write it: ask David.
 - **Run logs in `runs/` are David's.** Agents never write or edit a run log (the templates,
   `TEMPLATE*.md`, are the exception).
 
@@ -76,6 +85,8 @@ davidshaevel-k8s-lab/
 │   ├── docs/                  # Reference pages (azure-portal.md: kubectl and the portal side by side)
 │   ├── scenarios/<n>-<name>/  # scenario.txt (alert) + walkthrough.md (read after the attempt)
 │   │                          # 0-warm-up-…: exercise.md in place of scenario.txt, plants nothing
+│   │                          # 4-namespace-guardrails-controller: also exercise.md and controller/
+│   │                          #   (Go module); plants nothing; its walkthrough is read first
 │   ├── runs/                  # David's run logs + TEMPLATE.md, TEMPLATE-warm-up.md
 │   └── tests/                 # Shell tests for the fault machinery
 └── <feature-worktrees>/       # Flat

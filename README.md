@@ -2,13 +2,16 @@
 
 Hands-on Kubernetes practice lab: AKS scenarios with planted faults.
 
-Each scenario is an alert or a ticket on a real cluster. A script plants a fault at random
+Most scenarios are an alert or a ticket on a real cluster. A script plants a fault at random
 and does not say which one; you diagnose it with `kubectl` (and the Azure CLI where it
 matters), fix it, write down the cause, and only then ask the lab what it planted. Every
-run leaves a run log in `runs/`.
+run leaves a run log in `runs/`. Two plant nothing: the warm-up traces a healthy rollout,
+and scenario 4 has you write a controller.
 
 > The scenarios and fault scripts were built with AI coding agents under David Shaevel's
-> direction; the runs and the run logs are his.
+> direction; the runs and the run logs are his. In scenario 4 the controller's logic is
+> his as well; its exercise says
+> [who wrote what](scenarios/4-namespace-guardrails-controller/exercise.md#who-wrote-what).
 
 ## Prerequisites
 
@@ -25,6 +28,7 @@ Install these first. Versions are the ones the lab was tested with; newer should
 | Azure CLI (`az`) | 2.90.0 | the AKS path |
 | Terraform | 1.16.2 | the AKS path |
 | kubelogin | untested: not installed on the build machine | the AKS path (Entra ID sign-in) |
+| Go | 1.26.11 (pinned in `.tool-versions`; 1.26 or newer works) | scenario 4 only; asdf is one way to install it, not required |
 
 On macOS: `brew install kubectl kind azure-cli hashicorp/tap/terraform Azure/kubelogin/kubelogin`
 (or `az aks install-cli` for kubectl + kubelogin), and Docker Desktop from docker.com.
@@ -200,10 +204,10 @@ has no timer and no `make reveal`. `make plant` is only for scenarios 2 and 3.
 | 1 | AKS upgrade | Version skew, deprecated APIs, disruption budgets | `az aks get-upgrades`, surge settings, PDBs, control plane then node pools, runbook + recovery plan | AKS |
 | 2 | The app can't reach its database | Networking and access: name resolution, Services and endpoints, NetworkPolicy, network security groups, credentials and ports, database-side access rules | CoreDNS, EndpointSlices, Cilium policy, NSG rules, Secrets, PostgreSQL errors | AKS (6 faults), kind (5) |
 | 3 | The deployment never becomes ready | The rollout path: images, scheduling, probes, configuration, quotas, startup crashes | `rollout status`, ReplicaSets, events, `describe pod`, `logs --previous`, ResourceQuota | AKS, kind |
-| 4 | Namespace guardrails controller | Drift: guardrail objects deleted by hand | Go, controller-runtime, reconcile loops, envtest | anywhere |
+| 4 | [Namespace guardrails controller](scenarios/4-namespace-guardrails-controller/exercise.md) | Drift: guardrail objects deleted by hand | Go, controller-runtime, reconcile loops, envtest | envtest (tests), kind (demo) |
 | 5 | Autoscaling under load | Capacity: pods, then nodes | HPA, cluster autoscaler, metrics, load generation | AKS |
 
-Scenarios 1, 4 and 5 hold only their alert text so far; their content arrives in later work.
+Scenarios 1 and 5 hold only their alert text so far; their content arrives in later work.
 
 ## What's in the repo
 
@@ -218,7 +222,8 @@ scripts/        what the Makefile targets run
 faults/         the planted faults (spoilers)
 docs/           reference pages: kubectl and the Azure portal, side by side
 scenarios/      one folder per scenario: scenario.txt (the alert) and walkthrough.md;
-                the warm-up (0) has exercise.md in place of scenario.txt
+                the warm-up (0) has exercise.md in place of scenario.txt; scenario 4
+                adds exercise.md and controller/ (a Go module)
 runs/           run logs, one per attempt, and their templates
 tests/          shell tests for the fault machinery, and the kind end-to-end run
 ```
@@ -298,7 +303,9 @@ with `make down`.
 
 ## Review after your attempt
 
-Spoilers. Open these only after you have written down your diagnosis.
+Spoilers. Open these only after you have written down your diagnosis. Scenario 4's is the
+exception: it explains concepts, holds no solution, and is meant to be read before you
+start.
 
 - [Warm-up walkthrough](scenarios/0-warm-up-trace-a-rollout/walkthrough.md) (after the
   warm-up; it holds no scenario spoilers)
@@ -306,4 +313,5 @@ Spoilers. Open these only after you have written down your diagnosis.
 - [Scenario 2 walkthrough](scenarios/2-app-cannot-reach-database/walkthrough.md)
 - [Scenario 3 walkthrough](scenarios/3-deployment-never-ready/walkthrough.md)
 - [Scenario 4 walkthrough](scenarios/4-namespace-guardrails-controller/walkthrough.md)
+  (read it before you start; no solution)
 - [Scenario 5 walkthrough](scenarios/5-autoscaling-under-load/walkthrough.md)
